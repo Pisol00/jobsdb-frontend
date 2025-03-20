@@ -1,13 +1,15 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface User {
   id: string;
-  username: string;  // เพิ่ม username
+  username: string;
   fullName: string;
   email: string;
   profileImage?: string;
+  twoFactorEnabled?: boolean; // เพิ่มฟิลด์สำหรับ 2FA
 }
 
 interface AuthContextType {
@@ -17,6 +19,8 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
+  // เพิ่มฟังก์ชันสำหรับจัดการ 2FA
+  handleLoginResponse: (data: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   // ตรวจสอบการเข้าสู่ระบบด้วย token และรับข้อมูลผู้ใช้ด้วย API
   const fetchUserData = useCallback(async (token: string): Promise<boolean> => {
@@ -123,9 +128,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('userInfo');
+    sessionStorage.removeItem('tempToken'); // ล้าง tempToken ด้วย
     setUser(null);
     setIsLoggedIn(false);
   }, []);
+
+  // เพิ่มฟังก์ชันสำหรับจัดการการตอบกลับจากการล็อกอิน (รองรับ 2FA)
+  const handleLoginResponse = useCallback((data: any) => {
+    if (data.requireTwoFactor) {
+      // ถ้าต้องการ 2FA ให้เก็บ tempToken และไปยังหน้ายืนยัน OTP
+      sessionStorage.setItem('tempToken', data.tempToken);
+      router.push('/auth/verify-otp');
+    } else {
+      // ถ้าไม่ต้องการ 2FA ให้เข้าสู่ระบบตามปกติ
+      login(data.token, data.user);
+      router.push('/jobs');
+    }
+  }, [login, router]);
 
   const value = {
     isLoggedIn,
@@ -133,7 +152,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading,
     login,
     logout,
-    checkAuth
+    checkAuth,
+    handleLoginResponse
   };
 
   return (

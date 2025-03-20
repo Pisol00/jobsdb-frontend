@@ -14,7 +14,7 @@ import { Check, AlertCircle, User, Lock, Loader2, Eye, EyeOff } from "lucide-rea
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { handleLoginResponse } = useAuth(); // เปลี่ยนจาก login เป็น handleLoginResponse
   
   const [formData, setFormData] = useState({
     usernameOrEmail: "",
@@ -28,14 +28,15 @@ export default function LoginPage() {
   // ตรวจสอบข้อความแจ้งเตือน
   const registered = searchParams.get('registered');
   const oauthError = searchParams.get('error');
+  const reset = searchParams.get('reset');
 
   useEffect(() => {
-    if (registered) {
+    if (registered || reset) {
       setShowSuccess(true);
       const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [registered]);
+  }, [registered, reset]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,18 +65,8 @@ export default function LoginPage() {
       console.log("ได้รับการตอบกลับ:", data);
       
       if (response.ok && data.success) {
-        // เรียกใช้ login จาก AuthContext
-        login(data.token, {
-          id: data.user.id,
-          username: data.user.username,
-          fullName: data.user.fullName,
-          email: data.user.email,
-          profileImage: data.user.profileImage,
-        });
-        
-        // นำทางไปหน้า jobs
-        console.log("ล็อกอินสำเร็จ! กำลังนำทางไปยังหน้า jobs");
-        router.push("/jobs");
+        // เรียกใช้ handleLoginResponse เพื่อจัดการการเข้าสู่ระบบ (รองรับ 2FA)
+        handleLoginResponse(data);
       } else {
         setError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
       }
@@ -107,7 +98,7 @@ export default function LoginPage() {
                   เข้าสู่ระบบเพื่อเริ่มต้นค้นหางานที่ใช่สำหรับคุณ
                 </CardDescription>
                 
-                {(registered || showSuccess) && (
+                {registered && showSuccess && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -116,6 +107,18 @@ export default function LoginPage() {
                   >
                     <Check className="h-5 w-5 mr-2 text-green-500" />
                     <span>ลงทะเบียนเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบ</span>
+                  </motion.div>
+                )}
+
+                {reset && showSuccess && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center"
+                  >
+                    <Check className="h-5 w-5 mr-2 text-green-500" />
+                    <span>เปลี่ยนรหัสผ่านเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่</span>
                   </motion.div>
                 )}
                 
@@ -281,8 +284,6 @@ export default function LoginPage() {
                 </p>
               </CardFooter>
             </Card>
-            
-            
           </motion.div>
         </div>
       </div>

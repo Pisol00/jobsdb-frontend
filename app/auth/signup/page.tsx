@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
-import { Check, AlertCircle, AtSign, User, Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { 
+  Check, 
+  AlertCircle, 
+  User, 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Loader2, 
+  XCircle, 
+  CheckCircle2,
+  CircleAlert 
+} from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -24,6 +36,64 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // เพิ่มตัวแปรสำหรับติดตามความปลอดภัยของรหัสผ่าน
+  const [passwordStrength, setPasswordStrength] = useState({
+    hasMinLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+  });
+  
+  // ฟังก์ชันตรวจสอบความปลอดภัยของรหัสผ่าน
+  const checkPasswordStrength = (password: string) => {
+    setPasswordStrength({
+      hasMinLength: password.length >= 8,
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    });
+  };
+  
+  // เช็คความแข็งแรงของรหัสผ่านทุกครั้งที่มีการเปลี่ยนแปลง
+  useEffect(() => {
+    checkPasswordStrength(formData.password);
+  }, [formData.password]);
+  
+  // ตรวจสอบว่ารหัสผ่านผ่านเกณฑ์ขั้นต่ำหรือไม่ (อักขระพิเศษเป็นตัวเลือกเสริม)
+  const isPasswordValid = () => {
+    return (
+      passwordStrength.hasMinLength && 
+      passwordStrength.hasUpperCase && 
+      passwordStrength.hasLowerCase && 
+      passwordStrength.hasNumber
+      // ไม่บังคับให้มีอักขระพิเศษ
+    );
+  };
+  
+  // คำนวณคะแนนความแข็งแรงของรหัสผ่าน (0-5)
+  const passwordStrengthScore = () => {
+    return Object.values(passwordStrength).filter(Boolean).length;
+  };
+  
+  // แสดงระดับความแข็งแรงของรหัสผ่าน
+  const getPasswordStrengthLabel = () => {
+    const score = passwordStrengthScore();
+    if (score === 0) return "";
+    if (score < 3) return "อ่อน";
+    if (score < 5) return "ปานกลาง";
+    return "แข็งแรง";
+  };
+  
+  // กำหนดสีของแถบความแข็งแรง
+  const getPasswordStrengthColor = () => {
+    const score = passwordStrengthScore();
+    if (score < 3) return "bg-red-500";
+    if (score < 5) return "bg-yellow-500";
+    return "bg-green-500";
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -40,6 +110,12 @@ export default function SignupPage() {
     // ตรวจสอบรหัสผ่าน
     if (formData.password !== formData.confirmPassword) {
       setError("รหัสผ่านไม่ตรงกัน");
+      return;
+    }
+    
+    // ตรวจสอบความปลอดภัยของรหัสผ่าน
+    if (!isPasswordValid()) {
+      setError("กรุณาตั้งรหัสผ่านที่มีความปลอดภัยตามเงื่อนไขที่กำหนด");
       return;
     }
 
@@ -171,12 +247,11 @@ export default function SignupPage() {
                         id="password"
                         name="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="อย่างน้อย 6 ตัวอักษร"
+                        placeholder="รหัสผ่านที่ปลอดภัย"
                         value={formData.password}
                         onChange={handleChange}
                         className="pl-10 pr-10 bg-white/70 focus:bg-white border-gray-300 focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
                         required
-                        minLength={6}
                       />
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <button
@@ -185,9 +260,9 @@ export default function SignupPage() {
                           className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                         >
                           {showPassword ? (
-                            <EyeOff className="h-5 w-5" />
-                          ) : (
                             <Eye className="h-5 w-5" />
+                          ) : (
+                            <EyeOff className="h-5 w-5" />
                           )}
                           <span className="sr-only">
                             {showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
@@ -195,6 +270,82 @@ export default function SignupPage() {
                         </button>
                       </div>
                     </div>
+                    
+                    {/* แสดงความแข็งแรงของรหัสผ่าน */}
+                    {formData.password && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-gray-700">ความปลอดภัยของรหัสผ่าน:</span>
+                          <span className={`text-xs font-medium ${
+                            passwordStrengthScore() < 3 ? "text-red-600" :
+                            passwordStrengthScore() < 5 ? "text-yellow-600" : "text-green-600"
+                          }`}>
+                            {getPasswordStrengthLabel()}
+                          </span>
+                        </div>
+                        
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${getPasswordStrengthColor()} transition-all duration-300`}
+                            style={{ width: `${passwordStrengthScore() * 20}%` }}
+                          ></div>
+                        </div>
+                        
+                        {/* รายการเงื่อนไขรหัสผ่าน */}
+                        <ul className="space-y-1 mt-2">
+                          <li className="flex items-center text-xs">
+                            {passwordStrength.hasMinLength ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mr-1.5" />
+                            )}
+                            <span className={passwordStrength.hasMinLength ? "text-green-700" : "text-gray-600"}>
+                              มีความยาวอย่างน้อย 8 ตัวอักษร
+                            </span>
+                          </li>
+                          <li className="flex items-center text-xs">
+                            {passwordStrength.hasUpperCase ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mr-1.5" />
+                            )}
+                            <span className={passwordStrength.hasUpperCase ? "text-green-700" : "text-gray-600"}>
+                              มีตัวอักษรพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว
+                            </span>
+                          </li>
+                          <li className="flex items-center text-xs">
+                            {passwordStrength.hasLowerCase ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mr-1.5" />
+                            )}
+                            <span className={passwordStrength.hasLowerCase ? "text-green-700" : "text-gray-600"}>
+                              มีตัวอักษรพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว
+                            </span>
+                          </li>
+                          <li className="flex items-center text-xs">
+                            {passwordStrength.hasNumber ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mr-1.5" />
+                            )}
+                            <span className={passwordStrength.hasNumber ? "text-green-700" : "text-gray-600"}>
+                              มีตัวเลข (0-9) อย่างน้อย 1 ตัว
+                            </span>
+                          </li>
+                          <li className="flex items-center text-xs">
+                            {passwordStrength.hasSpecialChar ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            ) : (
+                              <CircleAlert className="h-4 w-4 text-gray-400 mr-1.5" />
+                            )}
+                            <span className={passwordStrength.hasSpecialChar ? "text-green-700" : "text-gray-600"}>
+                              มีอักขระพิเศษ (!@#$%^&*) อย่างน้อย 1 ตัว (แนะนำแต่ไม่บังคับ)
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -214,7 +365,6 @@ export default function SignupPage() {
                         onChange={handleChange}
                         className="pl-10 pr-10 bg-white/70 focus:bg-white border-gray-300 focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
                         required
-                        minLength={6}
                       />
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <button
@@ -223,9 +373,9 @@ export default function SignupPage() {
                           className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                         >
                           {showConfirmPassword ? (
-                            <EyeOff className="h-5 w-5" />
-                          ) : (
                             <Eye className="h-5 w-5" />
+                          ) : (
+                            <EyeOff className="h-5 w-5" />
                           )}
                           <span className="sr-only">
                             {showConfirmPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
@@ -233,6 +383,23 @@ export default function SignupPage() {
                         </button>
                       </div>
                     </div>
+                    
+                    {/* แสดงสถานะการตรงกันของรหัสผ่าน */}
+                    {formData.confirmPassword && (
+                      <div className="flex items-center mt-1">
+                        {formData.password === formData.confirmPassword ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 text-green-500 mr-1.5" />
+                            <span className="text-xs text-green-700">รหัสผ่านตรงกัน</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-red-500 mr-1.5" />
+                            <span className="text-xs text-red-700">รหัสผ่านไม่ตรงกัน</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   {error && (
@@ -249,7 +416,7 @@ export default function SignupPage() {
                   <Button 
                     type="submit" 
                     className="w-full py-2 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-                    disabled={isLoading}
+                    disabled={isLoading || !isPasswordValid() || formData.password !== formData.confirmPassword}
                   >
                     {isLoading ? (
                       <span className="flex items-center justify-center">

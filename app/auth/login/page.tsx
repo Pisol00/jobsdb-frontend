@@ -231,9 +231,9 @@ export default function LoginPage() {
                           className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                         >
                           {showPassword ? (
-                            <EyeOff className="h-5 w-5" />
-                          ) : (
                             <Eye className="h-5 w-5" />
+                          ) : (
+                            <EyeOff className="h-5 w-5" />
                           )}
                           <span className="sr-only">
                             {showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}

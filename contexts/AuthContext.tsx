@@ -120,11 +120,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ฟังก์ชันสำหรับการจัดการกับ 2FA ที่ใช้ dynamic path
   const handleLoginResponse = useCallback((data: any) => {
     if (data.requireTwoFactor) {
-      // ถ้าต้องการ 2FA
-      // 1. เก็บ tempToken ไว้ใน sessionStorage
+      // ถ้าต้องการ 2FA ให้เก็บ tempToken และ expiresAt (ถ้ามี)
       sessionStorage.setItem('tempToken', data.tempToken);
       
-      // 2. นำทางไปที่หน้า verify-otp พร้อม token ใน URL path
+      // ถ้ามี expiresAt ให้จัดเก็บไว้ด้วย
+      if (data.expiresAt) {
+        sessionStorage.setItem('expiresAt', data.expiresAt.toString());
+        console.log("Saved expiresAt to sessionStorage:", data.expiresAt);
+      } else {
+        // กรณีที่ API ไม่ส่ง expiresAt มา ให้คำนวณเองโดยปกติคือ 10 นาที
+        const calculatedExpiresAt = Date.now() + (10 * 60 * 1000);
+        sessionStorage.setItem('expiresAt', calculatedExpiresAt.toString());
+        console.log("Calculated and saved expiresAt:", calculatedExpiresAt);
+      }
+      
+      // นำทางไปยังหน้ายืนยัน OTP พร้อม token ใน URL เพื่อให้สามารถใช้ลิงก์ในอีเมลได้
       router.push(`/auth/verify-otp/${data.tempToken}`);
     } else {
       // ถ้าไม่ต้องการ 2FA ให้เข้าสู่ระบบตามปกติ

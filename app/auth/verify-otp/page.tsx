@@ -16,40 +16,75 @@ export default function VerifyOTPDefaultPage() {
   const [countdown, setCountdown] = useState(5);
   
   useEffect(() => {
-    // ตรวจสอบว่ามี tempToken ใน sessionStorage หรือไม่
+    // ตรวจสอบว่ามี tempToken และ expiresAt ใน sessionStorage หรือไม่
     const tempToken = sessionStorage.getItem('tempToken');
+    const expiresAtStr = sessionStorage.getItem('expiresAt');
     
     // เพิ่ม debug log
     console.log("Checking token in default page:", tempToken);
+    console.log("ExpiresAt from sessionStorage:", expiresAtStr);
     
     // ตรวจสอบว่า token ถูกต้องหรือไม่ (มีค่าและไม่ใช่ 'undefined' หรือ 'null')
     if (tempToken && tempToken !== 'undefined' && tempToken !== 'null' && tempToken.length > 10) {
-      setHasValidToken(true);
-      // ถ้ามี token ที่ดูถูกต้อง ให้ redirect ไปที่หน้าที่มี token ใน URL
-      router.push(`/auth/verify-otp/${tempToken}`);
+      // ตรวจสอบเวลาหมดอายุ
+      if (expiresAtStr) {
+        const expiresAt = parseInt(expiresAtStr);
+        const now = Date.now();
+        
+        // ถ้าเวลายังไม่หมดอายุ
+        if (expiresAt > now) {
+          setHasValidToken(true);
+          // ถ้ามี token ที่ดูถูกต้อง ให้ redirect ไปที่หน้าที่มี token ใน URL
+          router.push(`/auth/verify-otp/${tempToken}`);
+        } else {
+          // ถ้าเวลาหมดอายุแล้ว
+          console.log("OTP has expired, clearing session data");
+          sessionStorage.removeItem('tempToken');
+          sessionStorage.removeItem('expiresAt');
+          setHasValidToken(false);
+          setIsChecking(false);
+          startCountdown();
+        }
+      } else {
+        // ถ้ามี token แต่ไม่มีข้อมูลเวลาหมดอายุ
+        // สร้างเวลาหมดอายุใหม่ในกรณีที่มี token แต่ไม่มีเวลาหมดอายุ
+        const newExpiresAt = Date.now() + (10 * 60 * 1000); // 10 นาที
+        sessionStorage.setItem('expiresAt', newExpiresAt.toString());
+        console.log("Creating new expiresAt:", newExpiresAt);
+        
+        setHasValidToken(true);
+        router.push(`/auth/verify-otp/${tempToken}`);
+      }
     } else {
       // ถ้าไม่มี token หรือ token ไม่ถูกต้อง
+      console.log("No valid token found");
       setHasValidToken(false);
       setIsChecking(false);
-      
-      // เริ่มนับถอยหลังเพื่อกลับไปหน้า login
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            router.push('/auth/login');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      
-      return () => clearInterval(timer);
+      startCountdown();
     }
   }, [router]);
   
+  // ฟังก์ชันเริ่มนับถอยหลัง
+  const startCountdown = () => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          router.push('/auth/login');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  };
+  
   // ฟังก์ชันสำหรับกลับไปหน้า login ทันที
   const handleBackToLogin = () => {
+    // ล้างข้อมูลทั้งหมดที่เกี่ยวข้องกับ OTP
+    sessionStorage.removeItem('tempToken');
+    sessionStorage.removeItem('expiresAt');
     router.push('/auth/login');
   };
   
@@ -82,7 +117,7 @@ export default function VerifyOTPDefaultPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-2xl font-bold text-center text-gray-800">มีข้อผิดพลาด</CardTitle>
                   <CardDescription className="text-center text-gray-600">
-                    ไม่พบข้อมูลการยืนยันตัวตน
+                    ไม่พบข้อมูลการยืนยันตัวตนหรือข้อมูลหมดอายุแล้ว
                   </CardDescription>
                 </CardHeader>
                 

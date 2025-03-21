@@ -23,31 +23,83 @@ export default function VerifyOTPPage() {
   const [otp, setOTP] = useState("");
   const [tempToken, setTempToken] = useState("");
   const [error, setError] = useState("");
-  const [tokenError, setTokenError] = useState(false); // เพิ่ม state สำหรับแสดงข้อผิดพลาดเกี่ยวกับ token
+  const [tokenError, setTokenError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [countdown, setCountdown] = useState(600); // 10 นาที = 600 วินาที
+  const [countdown, setCountdown] = useState(600); // เริ่มต้นที่ 10 นาที (600 วินาที)
   const [rememberDevice, setRememberDevice] = useState(true); // เริ่มต้นเป็น true
-  const [isTokenRedirecting, setIsTokenRedirecting] = useState(false); // เพิ่ม state สำหรับแสดงสถานะการ redirect
+  const [isTokenRedirecting, setIsTokenRedirecting] = useState(false);
   
   useEffect(() => {
     // ดึง token จาก URL parameters
     const tokenFromUrl = params.token as string;
     
+    // ดึง expiresAt จาก URL query parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlExpiresAt = searchParams.get('expiresAt');
+    
+    // ดึงข้อมูลเวลาหมดอายุและ token จาก sessionStorage
+    const storedExpiresAt = sessionStorage.getItem('expiresAt');
+    const storedToken = sessionStorage.getItem('tempToken');
+    
     // เพิ่ม debug log
     console.log("Token from URL:", tokenFromUrl);
-    console.log("Token from sessionStorage:", sessionStorage.getItem('tempToken'));
+    console.log("ExpiresAt from URL:", urlExpiresAt);
+    console.log("Token from sessionStorage:", storedToken);
+    console.log("ExpiresAt from sessionStorage:", storedExpiresAt);
 
     // เพิ่มเงื่อนไขในการตรวจสอบความถูกต้องของ token
     if (tokenFromUrl && tokenFromUrl !== 'undefined' && tokenFromUrl !== 'null' && tokenFromUrl.length > 10) {
       // ถ้ามี token ที่ดูถูกต้อง จาก URL
       console.log("Using token from URL");
       setTempToken(tokenFromUrl);
+      
+      // บันทึก token ไว้ใน sessionStorage (ไม่ว่าจะเป็น token เดิมหรือใหม่)
       sessionStorage.setItem('tempToken', tokenFromUrl);
+      
+      // จัดการกับ expiresAt
+      if (urlExpiresAt) {
+        // ถ้ามี expiresAt จาก URL ให้ใช้ค่านั้น
+        const expiresAt = parseInt(urlExpiresAt);
+        sessionStorage.setItem('expiresAt', urlExpiresAt);
+        
+        const now = Date.now();
+        const diff = Math.floor((expiresAt - now) / 1000);
+        
+        if (diff > 0) {
+          console.log("Setting countdown from URL expiresAt:", diff);
+          setCountdown(diff);
+        } else {
+          // ถ้าหมดเวลาแล้ว
+          console.log("URL OTP has expired");
+          setCountdown(0);
+        }
+      } else if (storedExpiresAt) {
+        // ถ้าไม่มี expiresAt จาก URL แต่มีใน sessionStorage
+        const expiresAt = parseInt(storedExpiresAt);
+        const now = Date.now();
+        const diff = Math.floor((expiresAt - now) / 1000);
+        
+        if (diff > 0) {
+          console.log("Setting countdown from sessionStorage:", diff);
+          setCountdown(diff);
+        } else {
+          // ถ้าหมดเวลาแล้ว สร้างเวลาใหม่
+          const newExpiresAt = Date.now() + (10 * 60 * 1000); // 10 นาที
+          sessionStorage.setItem('expiresAt', newExpiresAt.toString());
+          console.log("Creating new expiresAt:", newExpiresAt);
+          setCountdown(600);
+        }
+      } else {
+        // ถ้าไม่มี expiresAt ทั้งจาก URL และ sessionStorage
+        const newExpiresAt = Date.now() + (10 * 60 * 1000); // 10 นาที
+        sessionStorage.setItem('expiresAt', newExpiresAt.toString());
+        console.log("No expiresAt found, creating new one:", newExpiresAt);
+        setCountdown(600);
+      }
+      
       setTokenError(false);
     } else {
       // กรณี token จาก URL ไม่ถูกต้อง
-      const storedToken = sessionStorage.getItem('tempToken');
-      
       if (storedToken && storedToken !== 'undefined' && storedToken !== 'null' && storedToken.length > 10) {
         // ถ้ามี token ที่ดูถูกต้องใน sessionStorage
         console.log("Using token from sessionStorage");
@@ -57,7 +109,14 @@ export default function VerifyOTPPage() {
         if (tokenFromUrl !== storedToken) {
           setIsTokenRedirecting(true);
           console.log("Redirecting to correct token URL");
-          router.replace(`/auth/verify-otp/${storedToken}`);
+          
+          // สร้าง URL ใหม่พร้อม expiresAt ถ้ามี
+          let redirectUrl = `/auth/verify-otp/${storedToken}`;
+          if (storedExpiresAt) {
+            redirectUrl += `?expiresAt=${storedExpiresAt}`;
+          }
+          
+          router.replace(redirectUrl);
           return;
         }
         
@@ -145,8 +204,9 @@ export default function VerifyOTPPage() {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        // ลบ tempToken จาก sessionStorage เมื่อยืนยันสำเร็จ
+        // ล้างข้อมูลใน session storage
         sessionStorage.removeItem('tempToken');
+        sessionStorage.removeItem('expiresAt');
         
         // เข้าสู่ระบบด้วย token จริง
         login(data.token, {
@@ -174,6 +234,7 @@ export default function VerifyOTPPage() {
   // เพิ่มฟังก์ชันสำหรับกลับไปหน้า login
   const handleBackToLogin = () => {
     sessionStorage.removeItem('tempToken');
+    sessionStorage.removeItem('expiresAt');
     router.push('/auth/login');
   };
   

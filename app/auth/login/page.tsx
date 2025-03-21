@@ -24,8 +24,14 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  ShieldAlert,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+
+// จำนวนครั้งที่อนุญาตให้ลอกอินผิด
+const MAX_LOGIN_ATTEMPTS = 5;
+// ระยะเวลาที่ล็อค (หน่วยเป็นวินาที)
+const LOCKOUT_DURATION = 5 * 60; // 5 นาที
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,6 +48,14 @@ export default function LoginPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // State สำหรับระบบป้องกัน brute force
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
+  const [remainingLockTime, setRemainingLockTime] = useState<number | null>(
+    null
+  );
+
   // ตรวจสอบข้อความแจ้งเตือน
   const registered = searchParams.get("registered");
   const oauthError = searchParams.get("error");
@@ -56,12 +70,87 @@ export default function LoginPage() {
     }
     setDeviceId(storedDeviceId);
 
+    // โหลดข้อมูลจำนวนครั้งที่ล็อกอินผิดจาก localStorage
+    const storedAttempts = localStorage.getItem("loginAttempts");
+    const storedLockoutEndTime = localStorage.getItem("lockoutEndTime");
+
+    if (storedAttempts) {
+      setLoginAttempts(parseInt(storedAttempts));
+    }
+
+    if (storedLockoutEndTime) {
+      const endTime = parseInt(storedLockoutEndTime);
+      setLockoutEndTime(endTime);
+
+      // ตรวจสอบว่าการล็อคยังมีผลอยู่หรือไม่
+      const now = Date.now();
+      if (now < endTime) {
+        setIsLocked(true);
+        // คำนวณเวลาที่เหลือ
+        const timeRemaining = Math.ceil((endTime - now) / 1000);
+        setRemainingLockTime(timeRemaining);
+      } else {
+        // หากหมดเวลาล็อคแล้ว ให้รีเซ็ตข้อมูล
+        resetLockout();
+      }
+    }
+
     if (registered || reset) {
       setShowSuccess(true);
       const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
   }, [registered, reset]);
+
+  // ตัวนับถอยหลังเวลาล็อกอิน
+  useEffect(() => {
+    if (!isLocked || remainingLockTime === null) return;
+
+    // อัพเดทเวลาที่เหลือทุกวินาที
+    const timer = setInterval(() => {
+      if (remainingLockTime <= 1) {
+        resetLockout();
+        clearInterval(timer);
+      } else {
+        setRemainingLockTime((prev) => (prev !== null ? prev - 1 : null));
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isLocked, remainingLockTime]);
+
+  // ฟังก์ชันรีเซ็ตการล็อค
+  const resetLockout = () => {
+    setIsLocked(false);
+    setLoginAttempts(0);
+    setLockoutEndTime(null);
+    setRemainingLockTime(null);
+    localStorage.removeItem("loginAttempts");
+    localStorage.removeItem("lockoutEndTime");
+  };
+
+  // ฟังก์ชันนับจำนวนครั้งที่ล็อกอินผิดและล็อคหากเกินที่กำหนด
+  const incrementLoginAttempts = () => {
+    const attempts = loginAttempts + 1;
+    setLoginAttempts(attempts);
+    localStorage.setItem("loginAttempts", attempts.toString());
+
+    // ล็อคเมื่อผิดเกินกำหนด
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      const endTime = Date.now() + LOCKOUT_DURATION * 1000;
+      setIsLocked(true);
+      setLockoutEndTime(endTime);
+      setRemainingLockTime(LOCKOUT_DURATION);
+      localStorage.setItem("lockoutEndTime", endTime.toString());
+    }
+  };
+
+  // ฟังก์ชันแปลงเวลาเป็นรูปแบบที่อ่านง่าย
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -73,9 +162,16 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+  
+    // ตรวจสอบว่าถูกล็อคอยู่หรือไม่
+    if (isLocked) {
+      // ไม่ต้องกำหนดค่า error เมื่อ isLocked เป็น true
+      return;
+    }
+  
     setError("");
     setIsLoading(true);
-
+  
     try {
       console.log("กำลังส่งข้อมูล:", { ...formData, deviceId });
       const response = await fetch(
@@ -87,21 +183,36 @@ export default function LoginPage() {
           },
           body: JSON.stringify({
             ...formData,
-            deviceId, // ส่ง deviceId ไปด้วย
+            deviceId,
           }),
         }
       );
-
+  
       const data = await response.json();
       console.log("ได้รับการตอบกลับ:", data);
-
+  
       if (response.ok && data.success) {
+        // รีเซ็ตการล็อค
+        setIsLocked(false);
+        setRemainingLockTime(null);
+        setError("");
         // เรียกใช้ handleLoginResponse เพื่อจัดการการเข้าสู่ระบบ (รองรับ 2FA)
         handleLoginResponse(data);
       } else {
-        setError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+        // ตรวจสอบสถานะการล็อค
+        if (data.lockoutRemaining) {
+          // กรณีบัญชีถูกล็อค
+          setIsLocked(true);
+          setRemainingLockTime(data.lockoutRemaining);
+          setError(""); // เคลียร์ error เมื่อตั้งค่า isLocked
+        } else {
+          // กรณีล็อกอินผิด แต่ยังไม่ถูกล็อค
+          setIsLocked(false);
+          setError(data.message || "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง");
+        }
       }
     } catch (err: any) {
+      setIsLocked(false); // ต้องแน่ใจว่า isLocked เป็น false เมื่อเกิดข้อผิดพลาดในการเชื่อมต่อ
       setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
       console.error("Login error:", err);
     } finally {
@@ -122,7 +233,7 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+            <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm gap-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-2xl font-bold text-center text-gray-800">
                   เข้าสู่ระบบ
@@ -167,6 +278,23 @@ export default function LoginPage() {
                     </span>
                   </div>
                 )}
+
+                {/* แสดงการล็อคบัญชี */}
+                {isLocked && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 p-3 bg-orange-50 border border-orange-200 text-orange-800 text-sm rounded-lg flex items-center"
+                  >
+                    <ShieldAlert className="h-5 w-5 mr-2 text-orange-500 flex-shrink-0" />
+                    <span>
+                      บัญชีถูกล็อคชั่วคราวเนื่องจากล็อกอินผิดหลายครั้ง <br />
+                      กรุณาลองใหม่ในอีก {formatTime(remainingLockTime || 0)}
+                    </span>
+                  </motion.div>
+                )}
+
+              
               </CardHeader>
 
               <CardContent className="pt-4">
@@ -191,6 +319,7 @@ export default function LoginPage() {
                         onChange={handleChange}
                         className="pl-10 bg-white/70 focus:bg-white border-gray-300 focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
                         required
+                        disabled={isLocked}
                       />
                     </div>
                   </div>
@@ -223,12 +352,14 @@ export default function LoginPage() {
                         onChange={handleChange}
                         className="pl-10 pr-10 bg-white/70 focus:bg-white border-gray-300 focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
                         required
+                        disabled={isLocked}
                       />
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                          disabled={isLocked}
                         >
                           {showPassword ? (
                             <Eye className="h-5 w-5" />
@@ -257,13 +388,15 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full py-2 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-                    disabled={isLoading}
+                    disabled={isLoading || isLocked}
                   >
                     {isLoading ? (
                       <span className="flex items-center justify-center">
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         กำลังเข้าสู่ระบบ...
                       </span>
+                    ) : isLocked ? (
+                      "บัญชีถูกล็อคชั่วคราว"
                     ) : (
                       "เข้าสู่ระบบ"
                     )}

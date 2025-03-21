@@ -180,7 +180,7 @@ export default function SignupPage() {
             transition={{ duration: 0.5 }}
           >
             
-            <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+            <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm gap-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-2xl font-bold text-center text-gray-800">สมัครสมาชิก</CardTitle>
                 <CardDescription className="text-center text-gray-600">

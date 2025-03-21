@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { AlertCircle, Lock, Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
-import TokenRequiredRoute from "@/components/TokenRequiredRoute";
+import TokenRequiredRoute from "@/components/auth/TokenRequiredRoute";
 
 export default function ResetPasswordPage() {
   const router = useRouter();

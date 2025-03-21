@@ -14,6 +14,13 @@ interface User {
   twoFactorEnabled?: boolean;
 }
 
+// Define the response type from getCurrentUser
+interface UserResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
+}
+
 interface AuthContextType {
   isLoggedIn: boolean;
   user: User | null;
@@ -59,7 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // ใช้ฟังก์ชัน getCurrentUser เพื่อตรวจสอบข้อมูลผู้ใช้จาก API
       try {
-        const response = await getCurrentUser(); // เรียกใช้ฟังก์ชันจาก api.ts
+        const response = await getCurrentUser() as UserResponse; // Cast the response to UserResponse type
         
         if (response.success && response.user) {
           // อัพเดทข้อมูลผู้ใช้

@@ -5,32 +5,57 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
-import { Check, AlertCircle, User, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import {
+  Check,
+  AlertCircle,
+  User,
+  Lock,
+  Loader2,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { handleLoginResponse } = useAuth(); // เปลี่ยนจาก login เป็น handleLoginResponse
-  
+  const { handleLoginResponse } = useAuth();
+
   const [formData, setFormData] = useState({
     usernameOrEmail: "",
     password: "",
   });
+  const [deviceId, setDeviceId] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // ตรวจสอบข้อความแจ้งเตือน
-  const registered = searchParams.get('registered');
-  const oauthError = searchParams.get('error');
-  const reset = searchParams.get('reset');
+  const registered = searchParams.get("registered");
+  const oauthError = searchParams.get("error");
+  const reset = searchParams.get("reset");
 
   useEffect(() => {
+    // ดึงหรือสร้าง deviceId สำหรับระบบ 2FA
+    let storedDeviceId = localStorage.getItem("deviceId");
+    if (!storedDeviceId) {
+      storedDeviceId = uuidv4();
+      localStorage.setItem("deviceId", storedDeviceId);
+    }
+    setDeviceId(storedDeviceId);
+
     if (registered || reset) {
       setShowSuccess(true);
       const timer = setTimeout(() => setShowSuccess(false), 5000);
@@ -52,18 +77,24 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      console.log("กำลังส่งข้อมูล:", formData);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-      
+      console.log("กำลังส่งข้อมูล:", { ...formData, deviceId });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...formData,
+            deviceId, // ส่ง deviceId ไปด้วย
+          }),
+        }
+      );
+
       const data = await response.json();
       console.log("ได้รับการตอบกลับ:", data);
-      
+
       if (response.ok && data.success) {
         // เรียกใช้ handleLoginResponse เพื่อจัดการการเข้าสู่ระบบ (รองรับ 2FA)
         handleLoginResponse(data);
@@ -82,7 +113,7 @@ export default function LoginPage() {
     <div className="relative min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,#fff,rgba(255,255,255,0.6))] opacity-20"></div>
-      
+
       {/* Main content */}
       <div className="relative flex items-center justify-center min-h-screen py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md">
@@ -93,15 +124,17 @@ export default function LoginPage() {
           >
             <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-2xl font-bold text-center text-gray-800">เข้าสู่ระบบ</CardTitle>
+                <CardTitle className="text-2xl font-bold text-center text-gray-800">
+                  เข้าสู่ระบบ
+                </CardTitle>
                 <CardDescription className="text-center text-gray-600">
                   เข้าสู่ระบบเพื่อเริ่มต้นค้นหางานที่ใช่สำหรับคุณ
                 </CardDescription>
-                
+
                 {registered && showSuccess && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
+                    animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-3 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center"
                   >
@@ -111,29 +144,38 @@ export default function LoginPage() {
                 )}
 
                 {reset && showSuccess && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
+                    animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-3 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center"
                   >
                     <Check className="h-5 w-5 mr-2 text-green-500" />
-                    <span>เปลี่ยนรหัสผ่านเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่</span>
+                    <span>
+                      เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!
+                      กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่
+                    </span>
                   </motion.div>
                 )}
-                
+
                 {oauthError && (
                   <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg flex items-center">
                     <AlertCircle className="h-5 w-5 mr-2 text-red-500" />
-                    <span>เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google กรุณาลองใหม่อีกครั้ง</span>
+                    <span>
+                      เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google
+                      กรุณาลองใหม่อีกครั้ง
+                    </span>
                   </div>
                 )}
               </CardHeader>
-              
+
               <CardContent className="pt-4">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="usernameOrEmail" className="text-gray-700 font-medium">
+                    <Label
+                      htmlFor="usernameOrEmail"
+                      className="text-gray-700 font-medium"
+                    >
                       ชื่อผู้ใช้ หรือ อีเมล
                     </Label>
                     <div className="relative">
@@ -152,14 +194,17 @@ export default function LoginPage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-gray-700 font-medium">
+                      <Label
+                        htmlFor="password"
+                        className="text-gray-700 font-medium"
+                      >
                         รหัสผ่าน
                       </Label>
-                      <Link 
-                        href="/auth/forgot-password" 
+                      <Link
+                        href="/auth/forgot-password"
                         className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                       >
                         ลืมรหัสผ่าน?
@@ -197,7 +242,7 @@ export default function LoginPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {error && (
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
@@ -208,9 +253,9 @@ export default function LoginPage() {
                       <span>{error}</span>
                     </motion.div>
                   )}
-                  
-                  <Button 
-                    type="submit" 
+
+                  <Button
+                    type="submit"
                     className="w-full py-2 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
                     disabled={isLoading}
                   >
@@ -266,17 +311,19 @@ export default function LoginPage() {
                           d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
                         />
                       </svg>
-                      <span className="font-medium">เข้าสู่ระบบด้วย Google</span>
+                      <span className="font-medium">
+                        เข้าสู่ระบบด้วย Google
+                      </span>
                     </motion.a>
                   </div>
                 </div>
               </CardContent>
-              
+
               <CardFooter className="flex justify-center pb-6 pt-2">
                 <p className="text-gray-600">
                   ยังไม่มีบัญชี?{" "}
-                  <Link 
-                    href="/auth/signup" 
+                  <Link
+                    href="/auth/signup"
                     className="text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors"
                   >
                     สมัครสมาชิก

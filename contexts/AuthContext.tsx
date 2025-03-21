@@ -1,7 +1,9 @@
+// สำหรับแก้ไขใน src/contexts/AuthContext.tsx
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { getCurrentUser } from '@/lib/api'; // เพิ่มการนำเข้าฟังก์ชันจาก api
 
 interface User {
   id: string;
@@ -9,7 +11,7 @@ interface User {
   fullName: string;
   email: string;
   profileImage?: string;
-  twoFactorEnabled?: boolean; // เพิ่มฟิลด์สำหรับ 2FA
+  twoFactorEnabled?: boolean;
 }
 
 interface AuthContextType {
@@ -19,7 +21,6 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
-  // เพิ่มฟังก์ชันสำหรับจัดการ 2FA
   handleLoginResponse: (data: any) => void;
 }
 
@@ -31,43 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ตรวจสอบการเข้าสู่ระบบด้วย token และรับข้อมูลผู้ใช้ด้วย API
-  const fetchUserData = useCallback(async (token: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          // อัพเดทข้อมูลผู้ใช้ใน localStorage
-          localStorage.setItem('userInfo', JSON.stringify(data.user));
-          setUser(data.user);
-          setIsLoggedIn(true);
-          return true;
-        }
-      }
-      
-      // หากไม่สำเร็จให้ออกจากระบบ
-      localStorage.removeItem('token');
-      localStorage.removeItem('userInfo');
-      setUser(null);
-      setIsLoggedIn(false);
-      return false;
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      localStorage.removeItem('token');
-      localStorage.removeItem('userInfo');
-      setUser(null);
-      setIsLoggedIn(false);
-      return false;
-    }
-  }, []);
-
-  // ตรวจสอบสถานะการเข้าสู่ระบบ
+  // ตรวจสอบสถานะการเข้าสู่ระบบด้วย token
   const checkAuth = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
@@ -87,17 +52,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userData = JSON.parse(userInfo);
           setUser(userData);
           setIsLoggedIn(true);
-          setLoading(false);
-          return true;
         } catch (error) {
           console.error('Failed to parse user info:', error);
         }
       }
       
-      // ถ้าไม่มีข้อมูลผู้ใช้ใน localStorage หรือข้อมูลไม่ถูกต้อง ให้ดึงข้อมูลจาก API
-      const result = await fetchUserData(token);
+      // ใช้ฟังก์ชัน getCurrentUser เพื่อตรวจสอบข้อมูลผู้ใช้จาก API
+      try {
+        const response = await getCurrentUser(); // เรียกใช้ฟังก์ชันจาก api.ts
+        
+        if (response.success && response.user) {
+          // อัพเดทข้อมูลผู้ใช้
+          localStorage.setItem('userInfo', JSON.stringify(response.user));
+          setUser(response.user);
+          setIsLoggedIn(true);
+          setLoading(false);
+          return true;
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('userInfo');
+        setUser(null);
+        setIsLoggedIn(false);
+        setLoading(false);
+        return false;
+      }
+      
       setLoading(false);
-      return result;
+      return isLoggedIn;
     } catch (error) {
       console.error('Auth check error:', error);
       setIsLoggedIn(false);
@@ -105,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return false;
     }
-  }, [fetchUserData]);
+  }, [isLoggedIn]);
 
   // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อเริ่มต้น
   useEffect(() => {
@@ -131,14 +114,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     sessionStorage.removeItem('tempToken'); // ล้าง tempToken ด้วย
     setUser(null);
     setIsLoggedIn(false);
-  }, []);
+    router.push('/auth/login');
+  }, [router]);
 
-  // เพิ่มฟังก์ชันสำหรับจัดการการตอบกลับจากการล็อกอิน (รองรับ 2FA)
+  // ฟังก์ชันสำหรับการจัดการกับ 2FA ที่ใช้ dynamic path
   const handleLoginResponse = useCallback((data: any) => {
     if (data.requireTwoFactor) {
-      // ถ้าต้องการ 2FA ให้เก็บ tempToken และไปยังหน้ายืนยัน OTP
+      // ถ้าต้องการ 2FA
+      // 1. เก็บ tempToken ไว้ใน sessionStorage
       sessionStorage.setItem('tempToken', data.tempToken);
-      router.push('/auth/verify-otp');
+      
+      // 2. นำทางไปที่หน้า verify-otp พร้อม token ใน URL path
+      router.push(`/auth/verify-otp/${data.tempToken}`);
     } else {
       // ถ้าไม่ต้องการ 2FA ให้เข้าสู่ระบบตามปกติ
       login(data.token, data.user);

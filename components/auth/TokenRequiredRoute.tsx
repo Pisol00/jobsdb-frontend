@@ -69,7 +69,7 @@ const ForbiddenAccess = ({ redirectLink }: ForbiddenAccessProps) => (
             <CardContent className="pt-6 pb-6">
               <div className="flex flex-col items-center text-center">
                 <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
-                <h2 className="text-2xl font-bold text-red-700 mb-2">403 Forbidden</h2>
+                <h2 className="text-2xl font-bold text-red-500 mb-2">403 Forbidden</h2>
                 <p className="text-gray-600 mb-4">
                   ไม่อนุญาตให้เข้าถึงหน้านี้โดยตรง กรุณาใช้ลิงก์ที่ส่งไปยังอีเมลของคุณ
                 </p>

@@ -5,6 +5,7 @@ import { User, Mail, Lock, Loader2, Eye, EyeOff, ShieldAlert } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import AlertBox from "../AlertBox";
 import PasswordInput from "../PasswordInput";
 import SocialLoginButton from "../SocialLoginButton";
@@ -25,6 +26,7 @@ export interface LoginFormData {
   usernameOrEmail: string;
   password: string;
   deviceId: string;
+  rememberMe: boolean;
 }
 
 export default function LoginForm({
@@ -42,6 +44,7 @@ export default function LoginForm({
     usernameOrEmail: "",
     password: "",
     deviceId: "",
+    rememberMe: false,
   });
   
   // Format lock time to MM:SS
@@ -59,20 +62,34 @@ export default function LoginForm({
       storedDeviceId = crypto.randomUUID(); // Use built-in UUID instead of depending on uuid package
       localStorage.setItem("deviceId", storedDeviceId);
     }
-    setFormData(prev => ({ ...prev, deviceId: storedDeviceId }));
+    
+    // ดึง username ที่บันทึกไว้ (ถ้ามี)
+    const savedUsername = localStorage.getItem("savedUsername");
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      deviceId: storedDeviceId,
+      usernameOrEmail: savedUsername || ""
+    }));
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
+    
+    // บันทึก username สำหรับการเข้าสู่ระบบครั้งต่อไป
+    if (formData.rememberMe) {
+      localStorage.setItem("savedUsername", formData.usernameOrEmail);
+    }
+    
     await onSubmit(formData);
   };
 
@@ -128,6 +145,21 @@ export default function LoginForm({
           required
           disabled={isLocked || isLoading}
         />
+      </div>
+      
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id="rememberMe"
+          name="rememberMe"
+          checked={formData.rememberMe}
+          onChange={handleChange}
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          disabled={isLocked || isLoading}
+        />
+        <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+          จดจำฉันไว้ในระบบ
+        </label>
       </div>
 
       {/* Success message */}

@@ -130,6 +130,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // ถ้าต้องการ 2FA ให้เก็บ tempToken และ expiresAt (ถ้ามี)
       sessionStorage.setItem('tempToken', data.tempToken);
       
+      if (data.rememberMe !== undefined) {
+        sessionStorage.setItem('rememberMe', data.rememberMe.toString());
+      }
+      
       // ถ้ามี expiresAt ให้จัดเก็บไว้ด้วย
       if (data.expiresAt) {
         sessionStorage.setItem('expiresAt', data.expiresAt.toString());

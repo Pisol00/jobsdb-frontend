@@ -5,7 +5,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 interface LoginData {
   email: string;
   password: string;
-  deviceId?: string; // เพิ่ม deviceId สำหรับ 2FA
+  deviceId?: string;
+  rememberMe?: boolean;
 }
 
 interface RegisterData {

@@ -1,14 +1,14 @@
 // components/auth/forms/LoginForm.tsx
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { User, Mail, Lock, Loader2, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { User, Mail, Lock, Loader2, Eye, EyeOff, ShieldAlert, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useSearchParams } from "next/navigation";
 import AlertBox from "../AlertBox";
 import PasswordInput from "../PasswordInput";
-import SocialLoginButton from "../SocialLoginButton";
+import GoogleLoginButton from "../GoogleLoginButton";
 
 interface LoginFormProps {
   onSubmit: (data: LoginFormData) => Promise<void>;
@@ -40,6 +40,11 @@ export default function LoginForm({
   isLocked = false,
   remainingLockTime = null,
 }: LoginFormProps) {
+  // เพิ่ม searchParams เพื่อดึงค่า error และ email จาก URL
+  const searchParams = useSearchParams();
+  const errorType = searchParams.get("error");
+  const emailFromURL = searchParams.get("email");
+
   const [formData, setFormData] = useState<LoginFormData>({
     usernameOrEmail: "",
     password: "",
@@ -66,12 +71,15 @@ export default function LoginForm({
     // ดึง username ที่บันทึกไว้ (ถ้ามี)
     const savedUsername = localStorage.getItem("savedUsername");
     
+    // ตรวจสอบว่ามี email จาก URL หรือไม่ (กรณีมี error email_exists)
+    const initialUsername = emailFromURL || savedUsername || "";
+    
     setFormData(prev => ({ 
       ...prev, 
       deviceId: storedDeviceId,
-      usernameOrEmail: savedUsername || ""
+      usernameOrEmail: initialUsername
     }));
-  }, []);
+  }, [emailFromURL]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -91,6 +99,20 @@ export default function LoginForm({
     }
     
     await onSubmit(formData);
+  };
+
+  // เพิ่มฟังก์ชันสำหรับการแสดงข้อความแจ้งเตือนกรณีมีอีเมลซ้ำ
+  const renderEmailExistsWarning = () => {
+    if (errorType === "email_exists" && emailFromURL) {
+      return (
+        <AlertBox 
+          type="warning" 
+          icon={<AlertCircle className="h-5 w-5 text-amber-500" />}
+          message={`อีเมล ${emailFromURL} มีบัญชีในระบบแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่าน`} 
+        />
+      );
+    }
+    return null;
   };
 
   return (
@@ -162,6 +184,9 @@ export default function LoginForm({
         </label>
       </div>
 
+      {/* แสดงข้อความแจ้งเตือน email_exists ก่อน */}
+      {renderEmailExistsWarning()}
+
       {/* Success message */}
       {showSuccess && successMessage && (
         <AlertBox 
@@ -170,8 +195,8 @@ export default function LoginForm({
         />
       )}
 
-      {/* OAuth error */}
-      {oauthError && (
+      {/* OAuth error - แก้ไขเพื่อไม่แสดงซ้ำซ้อนกับ email_exists */}
+      {oauthError && errorType !== "email_exists" && (
         <AlertBox 
           type="error" 
           message="เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google กรุณาลองใหม่อีกครั้ง" 
@@ -225,10 +250,7 @@ export default function LoginForm({
         </div>
 
         <div className="mt-6">
-          <SocialLoginButton
-            provider="google"
-            href={`${apiBaseUrl}/auth/google`}
-          />
+          <GoogleLoginButton href={`${apiBaseUrl}/auth/google`} />
         </div>
       </div>
     </form>

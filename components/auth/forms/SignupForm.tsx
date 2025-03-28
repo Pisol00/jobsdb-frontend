@@ -1,13 +1,13 @@
 // components/auth/forms/SignupForm.tsx
 import { useState, useEffect } from "react";
-import { User, Mail, XCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { User, Mail, XCircle, CheckCircle2, Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AlertBox from "../AlertBox";
 import PasswordInput from "../PasswordInput";
 import PasswordStrengthMeter from "../PasswordStrengthMeter";
-import SocialLoginButton from "../SocialLoginButton";
+import GoogleLoginButton from "../GoogleLoginButton";
 
 interface SignupFormProps {
   onSubmit: (data: SignupFormData) => Promise<void>;
@@ -243,12 +243,21 @@ export default function SignupForm({
           </div>
         </div>
 
-        <div className="mt-6">
-          <SocialLoginButton
-            provider="google"
+        <div className="mt-6 space-y-3">
+          <GoogleLoginButton
             href={`${apiBaseUrl}/auth/google`}
             label="สมัครด้วย Google"
           />
+          
+          {/* เพิ่มข้อความคำอธิบายเกี่ยวกับการสมัครด้วย Google */}
+          <div className="flex items-start text-xs text-gray-600 bg-blue-50 p-2 rounded-md">
+            <Info className="h-4 w-4 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+            <p>
+              เมื่อคุณสมัครด้วย Google จะสร้างบัญชีใหม่ที่เชื่อมต่อกับบัญชี Google ของคุณ
+              หากคุณเคยมีบัญชีในระบบที่ใช้อีเมลเดียวกันนี้แล้ว คุณจะต้องเข้าสู่ระบบด้วยรหัสผ่านเดิม
+              ไม่สามารถใช้การเข้าสู่ระบบผ่าน Google ได้
+            </p>
+          </div>
         </div>
       </div>
     </form>

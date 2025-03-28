@@ -1,4 +1,3 @@
-// สำหรับแก้ไขใน src/contexts/AuthContext.tsx
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -119,6 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('userInfo');
     sessionStorage.removeItem('tempToken'); // ล้าง tempToken ด้วย
+    // ไม่ลบ savedUsername เพื่อให้จำไว้สำหรับการเข้าสู่ระบบครั้งถัดไป
     setUser(null);
     setIsLoggedIn(false);
     router.push('/auth/login');
@@ -130,6 +130,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // ถ้าต้องการ 2FA ให้เก็บ tempToken และ expiresAt (ถ้ามี)
       sessionStorage.setItem('tempToken', data.tempToken);
       
+      // เก็บค่า rememberMe ไว้ใช้หลังจากยืนยัน OTP
       if (data.rememberMe !== undefined) {
         sessionStorage.setItem('rememberMe', data.rememberMe.toString());
       }

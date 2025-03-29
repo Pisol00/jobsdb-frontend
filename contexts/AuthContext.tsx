@@ -1,13 +1,23 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { getCurrentUser } from '@/lib/api'; // เพิ่มการนำเข้าฟังก์ชันจาก api
 
 interface User {
   id: string;
-  username: string;  // เพิ่ม username
+  username: string;
   fullName: string;
   email: string;
   profileImage?: string;
+  twoFactorEnabled?: boolean;
+}
+
+// Define the response type from getCurrentUser
+interface UserResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
 }
 
 interface AuthContextType {
@@ -17,6 +27,7 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
+  handleLoginResponse: (data: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,44 +36,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  // ตรวจสอบการเข้าสู่ระบบด้วย token และรับข้อมูลผู้ใช้ด้วย API
-  const fetchUserData = useCallback(async (token: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          // อัพเดทข้อมูลผู้ใช้ใน localStorage
-          localStorage.setItem('userInfo', JSON.stringify(data.user));
-          setUser(data.user);
-          setIsLoggedIn(true);
-          return true;
-        }
-      }
-      
-      // หากไม่สำเร็จให้ออกจากระบบ
-      localStorage.removeItem('token');
-      localStorage.removeItem('userInfo');
-      setUser(null);
-      setIsLoggedIn(false);
-      return false;
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      localStorage.removeItem('token');
-      localStorage.removeItem('userInfo');
-      setUser(null);
-      setIsLoggedIn(false);
-      return false;
-    }
-  }, []);
-
-  // ตรวจสอบสถานะการเข้าสู่ระบบ
+  // ตรวจสอบสถานะการเข้าสู่ระบบด้วย token
   const checkAuth = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
@@ -82,17 +58,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userData = JSON.parse(userInfo);
           setUser(userData);
           setIsLoggedIn(true);
-          setLoading(false);
-          return true;
         } catch (error) {
           console.error('Failed to parse user info:', error);
         }
       }
       
-      // ถ้าไม่มีข้อมูลผู้ใช้ใน localStorage หรือข้อมูลไม่ถูกต้อง ให้ดึงข้อมูลจาก API
-      const result = await fetchUserData(token);
+      // ใช้ฟังก์ชัน getCurrentUser เพื่อตรวจสอบข้อมูลผู้ใช้จาก API
+      try {
+        const response = await getCurrentUser() as UserResponse; // Cast the response to UserResponse type
+        
+        if (response.success && response.user) {
+          // อัพเดทข้อมูลผู้ใช้
+          localStorage.setItem('userInfo', JSON.stringify(response.user));
+          setUser(response.user);
+          setIsLoggedIn(true);
+          setLoading(false);
+          return true;
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('userInfo');
+        setUser(null);
+        setIsLoggedIn(false);
+        setLoading(false);
+        return false;
+      }
+      
       setLoading(false);
-      return result;
+      return isLoggedIn;
     } catch (error) {
       console.error('Auth check error:', error);
       setIsLoggedIn(false);
@@ -100,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return false;
     }
-  }, [fetchUserData]);
+  }, [isLoggedIn]);
 
   // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อเริ่มต้น
   useEffect(() => {
@@ -123,9 +117,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('userInfo');
+    sessionStorage.removeItem('tempToken'); // ล้าง tempToken ด้วย
+    // ไม่ลบ savedUsername เพื่อให้จำไว้สำหรับการเข้าสู่ระบบครั้งถัดไป
     setUser(null);
     setIsLoggedIn(false);
-  }, []);
+    router.push('/auth/login');
+  }, [router]);
+
+  // ฟังก์ชันสำหรับการจัดการกับ 2FA ที่ใช้ dynamic path
+  const handleLoginResponse = useCallback((data: any) => {
+    if (data.requireTwoFactor) {
+      // ถ้าต้องการ 2FA ให้เก็บ tempToken และ expiresAt (ถ้ามี)
+      sessionStorage.setItem('tempToken', data.tempToken);
+      
+      // เก็บค่า rememberMe ไว้ใช้หลังจากยืนยัน OTP
+      if (data.rememberMe !== undefined) {
+        sessionStorage.setItem('rememberMe', data.rememberMe.toString());
+      }
+      
+      // ถ้ามี expiresAt ให้จัดเก็บไว้ด้วย
+      if (data.expiresAt) {
+        sessionStorage.setItem('expiresAt', data.expiresAt.toString());
+        console.log("Saved expiresAt to sessionStorage:", data.expiresAt);
+      } else {
+        // กรณีที่ API ไม่ส่ง expiresAt มา ให้คำนวณเองโดยปกติคือ 10 นาที
+        const calculatedExpiresAt = Date.now() + (10 * 60 * 1000);
+        sessionStorage.setItem('expiresAt', calculatedExpiresAt.toString());
+        console.log("Calculated and saved expiresAt:", calculatedExpiresAt);
+      }
+      
+      // นำทางไปยังหน้ายืนยัน OTP พร้อม token ใน URL เพื่อให้สามารถใช้ลิงก์ในอีเมลได้
+      router.push(`/auth/verify-otp/${data.tempToken}`);
+    } else {
+      // ถ้าไม่ต้องการ 2FA ให้เข้าสู่ระบบตามปกติ
+      login(data.token, data.user);
+      router.push('/jobs');
+    }
+  }, [login, router]);
 
   const value = {
     isLoggedIn,
@@ -133,7 +161,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading,
     login,
     logout,
-    checkAuth
+    checkAuth,
+    handleLoginResponse
   };
 
   return (

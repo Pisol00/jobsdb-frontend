@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-
+import TwoFactorSettings from "@/components/auth/TwoFactorSettings";
 // ข้อมูลงานตัวอย่าง
 const dummyJobs = [
   {
@@ -74,6 +74,7 @@ export default function JobsPage() {
         <div className="flex gap-2">
           <Button variant="outline">ค้นหาขั้นสูง</Button>
           <Button>เรียงลำดับ</Button>
+          <TwoFactorSettings />
         </div>
       </div>
 

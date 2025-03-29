@@ -87,7 +87,7 @@ export default function OTPVerificationForm({
           htmlFor="rememberDevice" 
           className="text-sm text-gray-600 cursor-pointer"
         >
-          จดจำอุปกรณ์นี้เป็นเวลา 1 ชั่วโมง
+          จดจำอุปกรณ์นี้เป็นเวลา 24 ชั่วโมง
         </Label>
       </div>
       

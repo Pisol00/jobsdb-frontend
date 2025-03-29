@@ -11,6 +11,7 @@ import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import OTPVerificationForm from "@/components/auth/forms/OTPVerificationForm";
 import { ErrorMessage } from "@/components/auth/AlertBox";
+import ExpiredOTPAlert from "@/components/auth/ExpiredOTPAlert";
 import { Loader2 } from "lucide-react";
 
 export default function VerifyOTPPage() {
@@ -26,6 +27,7 @@ export default function VerifyOTPPage() {
   const [isTokenChecking, setIsTokenChecking] = useState(true);
   const [expiryTimestamp, setExpiryTimestamp] = useState<number | null>(null);
   const [isTokenRedirecting, setIsTokenRedirecting] = useState(false);
+  const [showExpiredAlert, setShowExpiredAlert] = useState(false);
   
   // Function to verify if token is still valid
   const verifyTempToken = async (token: string) => {
@@ -151,11 +153,9 @@ export default function VerifyOTPPage() {
   
   // Function for going back to login when countdown expires
   const handleCountdownExpire = useCallback(() => {
-    if (tokenError) {
-      // If countdown expires and there's a token error, go back to login
-      handleBackToLogin();
-    }
-  }, [tokenError]);
+    // แสดงกล่องข้อความเมื่อเวลาหมด แทนการใช้ alert
+    setShowExpiredAlert(true);
+  }, []);
   
   // Function for going back to login
   const handleBackToLogin = useCallback(() => {
@@ -275,6 +275,14 @@ export default function VerifyOTPPage() {
         </svg>
       }
     >
+      {/* กล่องข้อความแจ้งเตือน OTP หมดอายุ */}
+      {showExpiredAlert && (
+        <ExpiredOTPAlert 
+          onClose={() => setShowExpiredAlert(false)}
+          autoRedirectDelay={5000}
+        />
+      )}
+
       <AuthCard
         title="ยืนยันรหัส OTP"
         description="กรอกรหัส OTP ที่ส่งไปยังอีเมลของคุณ"

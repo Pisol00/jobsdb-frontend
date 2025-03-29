@@ -152,6 +152,16 @@ export default function VerifyOTPDefaultPage() {
     }
   }, [isChecking, hasValidToken, router]);
 
+  // Function for handling countdown expiry with alert
+  const handleCountdownExpire = () => {
+    if (!redirectedRef.current) {
+      alert("เวลาหมดแล้ว กำลังนำคุณไปยังหน้าเข้าสู่ระบบ");
+      redirectedRef.current = true;
+      router.push("/auth/login");
+      setCountdownFinished(true);
+    }
+  };
+
   // Effect for redirect when countdown finishes
   useEffect(() => {
     if (countdownFinished && !hasValidToken && !redirectedRef.current) {
@@ -196,7 +206,7 @@ export default function VerifyOTPDefaultPage() {
               {expiryTimestamp && (
                 <CountdownTimer 
                   expiryTimestamp={expiryTimestamp} 
-                  onExpire={() => setCountdownFinished(true)}
+                  onExpire={handleCountdownExpire}
                   className="font-bold text-red-500"
                 />
               )} วินาที

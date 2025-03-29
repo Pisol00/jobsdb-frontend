@@ -327,7 +327,7 @@ const Navbar = () => {
                     เข้าสู่ระบบ
                   </Button>
                 </Link>
-                <Link href="/auth/signup">
+                <Link href="/auth/register">
                   <Button 
                     size="sm"
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all"
@@ -455,7 +455,7 @@ const Navbar = () => {
                   </motion.div>
                 </Link>
                 <Link
-                  href="/auth/signup"
+                  href="/auth/register"
                   onClick={closeMenu}
                 >
                   <motion.div

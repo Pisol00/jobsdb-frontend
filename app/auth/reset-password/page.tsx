@@ -1,7 +1,8 @@
+// app/auth/reset-password/[token]/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import authService from "@/lib/authService";
 import { ApiError } from "@/lib/apiService";
@@ -10,12 +11,10 @@ import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import ResetPasswordForm from "@/components/auth/forms/ResetPasswordForm";
 import AlertBox, { ErrorMessage } from "@/components/auth/AlertBox";
-import TokenRequiredRoute from "@/components/auth/TokenRequiredRoute";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const { token } = useParams();
   
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +28,7 @@ export default function ResetPasswordPage() {
       const verifyToken = async () => {
         try {
           setIsVerifyingToken(true);
-          const response = await authService.verifyResetToken(token);
+          const response = await authService.verifyResetToken(token as string);
           
           if (response.success) {
             setTokenValid(true);
@@ -69,13 +68,13 @@ export default function ResetPasswordPage() {
         throw new Error("ไม่พบโทเค็นสำหรับรีเซ็ตรหัสผ่าน");
       }
       
-      const response = await authService.resetPassword(token, password);
+      const response = await authService.resetPassword(token as string, password);
       
       if (response.success) {
         setIsSuccess(true);
         // Redirect to login page after 3 seconds
         setTimeout(() => {
-          router.push("/auth/login?reset=success");
+          router.push("/auth/login/reset-success");
         }, 3000);
       }
     } catch (err: any) {
@@ -151,16 +150,14 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <TokenRequiredRoute>
-      <AuthLayout showLogo={true} title="ตั้งรหัสผ่านใหม่">
-        <AuthCard
-          title="ตั้งรหัสผ่านใหม่"
-          description="กรุณากำหนดรหัสผ่านใหม่สำหรับบัญชีของคุณ"
-          footer={renderFooter()}
-        >
-          {renderContent()}
-        </AuthCard>
-      </AuthLayout>
-    </TokenRequiredRoute>
+    <AuthLayout showLogo={true} title="ตั้งรหัสผ่านใหม่">
+      <AuthCard
+        title="ตั้งรหัสผ่านใหม่"
+        description="กรุณากำหนดรหัสผ่านใหม่สำหรับบัญชีของคุณ"
+        footer={renderFooter()}
+      >
+        {renderContent()}
+      </AuthCard>
+    </AuthLayout>
   );
 }

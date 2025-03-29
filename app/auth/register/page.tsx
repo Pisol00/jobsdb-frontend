@@ -56,8 +56,9 @@ export default function SignupPage() {
             login(response.token, response.user);
             router.push("/jobs");
           } else {
-            // Otherwise, redirect to login page
-            router.push("/auth/login?registered=true");
+            // Otherwise, redirect to login page with success flag
+            // เปลี่ยนจาก query parameter เป็น path parameter
+            router.push("/auth/login/registered");
           }
         }
       }
@@ -75,8 +76,10 @@ export default function SignupPage() {
 
   const handleGoToVerificationPage = () => {
     if (emailVerificationInfo?.tempToken) {
-      router.push(`/auth/verify-email?token=${emailVerificationInfo.tempToken}&email=${encodeURIComponent(emailVerificationInfo.email)}`);
+      // ปรับปรุง URL เป็นรูปแบบใหม่
+      router.push(`/auth/verify-email/${emailVerificationInfo.tempToken}?email=${encodeURIComponent(emailVerificationInfo.email)}`);
     } else {
+      // กรณีไม่มี token ให้ส่ง email ไปด้วย
       router.push(`/auth/verify-email?email=${encodeURIComponent(emailVerificationInfo?.email || '')}`);
     }
   };

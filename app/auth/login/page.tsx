@@ -32,10 +32,9 @@ export default function LoginPage() {
   const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
   const [remainingLockTime, setRemainingLockTime] = useState<number | null>(null);
 
-  // Check for notifications
-  const registered = searchParams.get("registered");
+  // Check for notifications from query parameters that still need handling
   const oauthError = searchParams.get("error");
-  const reset = searchParams.get("reset");
+  const email = searchParams.get("email");
 
   useEffect(() => {
     // Load login attempts from localStorage
@@ -63,12 +62,22 @@ export default function LoginPage() {
       }
     }
 
-    if (registered || reset) {
+    // Check for session storage success messages
+    const registerSuccess = sessionStorage.getItem("registerSuccess");
+    const resetSuccess = sessionStorage.getItem("resetSuccess");
+    
+    if (registerSuccess || resetSuccess) {
       setShowSuccess(true);
+      
+      // Clear session storage
+      if (registerSuccess) sessionStorage.removeItem("registerSuccess");
+      if (resetSuccess) sessionStorage.removeItem("resetSuccess");
+      
+      // Auto-hide success message after 5 seconds
       const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [registered, reset]);
+  }, []);
 
   // Countdown timer for lockout
   useEffect(() => {
@@ -170,10 +179,14 @@ export default function LoginPage() {
     }
   };
 
-  // Get success message based on URL parameters
+  // Get success message based on session storage
   const getSuccessMessage = () => {
-    if (registered) return "ลงทะเบียนเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบ";
-    if (reset) return "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่";
+    if (sessionStorage.getItem("registerSuccess")) {
+      return "ลงทะเบียนเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบ";
+    }
+    if (sessionStorage.getItem("resetSuccess")) {
+      return "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่";
+    }
     return "";
   };
 

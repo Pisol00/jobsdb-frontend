@@ -1,14 +1,16 @@
-// app/auth/verify-otp/[token]/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import authService from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
+import { getOrCreateDeviceId } from "@/components/auth/utilities/authValidation";
+
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import OTPVerificationForm from "@/components/auth/forms/OTPVerificationForm";
 import { ErrorMessage } from "@/components/auth/AlertBox";
-import { getOrCreateDeviceId } from "@/components/auth/utilities/authValidation";
 import { Loader2 } from "lucide-react";
 
 export default function VerifyOTPPage() {
@@ -28,17 +30,8 @@ export default function VerifyOTPPage() {
   // Function to verify if token is still valid
   const verifyTempToken = async (token: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-temp-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-      
-      const data = await response.json();
-      console.log("Verify temp token response:", data);
-      return data.success;
+      const response = await authService.verifyTempToken(token);
+      return response.success;
     } catch (error) {
       console.error("Error verifying temp token:", error);
       return false;
@@ -197,43 +190,32 @@ export default function VerifyOTPPage() {
       // Get deviceId from localStorage
       const deviceId = getOrCreateDeviceId();
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          otp: data.otp, 
-          tempToken,
-          rememberDevice: data.rememberDevice,
-          deviceId
-        }),
+      const response = await authService.verifyOTP({
+        otp: data.otp,
+        tempToken,
+        rememberDevice: data.rememberDevice,
+        deviceId
       });
       
-      const responseData = await response.json();
-      
-      if (response.ok && responseData.success) {
+      if (response.success && response.token && response.user) {
         // Clear session storage data
         sessionStorage.removeItem('tempToken');
         sessionStorage.removeItem('expiresAt');
         
         // Login with real token
-        login(responseData.token, {
-          id: responseData.user.id,
-          username: responseData.user.username,
-          fullName: responseData.user.fullName || "",
-          email: responseData.user.email,
-          profileImage: responseData.user.profileImage,
-          twoFactorEnabled: responseData.user.twoFactorEnabled,
-        });
+        login(response.token, response.user);
         
         // Navigate to jobs page
         router.push("/jobs");
       } else {
-        setError(responseData.message || "รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
+        setError(response.message || "รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
       }
     } catch (err: any) {
-      setError("เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง");
+      if (err instanceof ApiError) {
+        setError(err.message || "รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
+      } else {
+        setError("เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง");
+      }
       console.error("OTP verification error:", err);
     } finally {
       setIsLoading(false);

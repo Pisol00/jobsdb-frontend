@@ -1,10 +1,12 @@
-// app/auth/login/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import authService, { LoginRequest } from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
+import { CONFIG } from "@/config";
 
 // Imported reusable components
 import AuthLayout from "@/components/auth/AuthLayout";
@@ -12,8 +14,8 @@ import AuthCard from "@/components/auth/AuthCard";
 import LoginForm, { LoginFormData } from "@/components/auth/forms/LoginForm";
 
 // Constants
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 5 * 60; // 5 minutes
+const MAX_LOGIN_ATTEMPTS = CONFIG.SECURITY.MAX_LOGIN_ATTEMPTS;
+const LOCKOUT_DURATION = CONFIG.SECURITY.LOCKOUT_DURATION / 1000; // Convert to seconds
 
 export default function LoginPage() {
   const router = useRouter();
@@ -121,45 +123,44 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      console.log("Submitting login data:", formData);
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        }
-      );
+      // Create login request
+      const loginRequest: LoginRequest = {
+        usernameOrEmail: formData.usernameOrEmail,
+        password: formData.password,
+        deviceId: formData.deviceId,
+        rememberMe: formData.rememberMe
+      };
 
-      const data = await response.json();
-      console.log("Login response:", data);
+      const response = await authService.login(loginRequest);
 
-      if (response.ok && data.success) {
+      if (response.success) {
         // Reset lockout state
         resetLockout();
         setError("");
+        
         // Handle login response (supports 2FA)
-        handleLoginResponse(data);
-      } else {
-        // Check lockout status
-        if (data.lockoutRemaining) {
+        handleLoginResponse(response);
+      }
+    } catch (err: any) {
+      setIsLocked(false);
+      
+      if (err instanceof ApiError) {
+        // Check lockout status from API response
+        if (err.code === "ACCOUNT_LOCKED" && err.data?.lockoutRemaining) {
           // Account is locked
           setIsLocked(true);
-          setRemainingLockTime(data.lockoutRemaining);
+          setRemainingLockTime(err.data.lockoutRemaining);
           setError(""); // Clear error when setting isLocked
         } else {
           // Failed login but not locked yet
           setIsLocked(false);
-          setError(data.message || "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง");
+          setError(err.message || "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง");
           incrementLoginAttempts();
         }
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+        console.error("Login error:", err);
       }
-    } catch (err: any) {
-      setIsLocked(false);
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
-      console.error("Login error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +197,7 @@ export default function LoginPage() {
           showSuccess={showSuccess}
           successMessage={getSuccessMessage()}
           oauthError={oauthError || undefined}
-          apiBaseUrl={process.env.NEXT_PUBLIC_API_URL || ""}
+          apiBaseUrl={CONFIG.API_URL}
           isLocked={isLocked}
           remainingLockTime={remainingLockTime}
         />

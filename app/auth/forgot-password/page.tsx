@@ -1,8 +1,10 @@
-// app/auth/forgot-password/page.tsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import authService from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
+
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import ForgotPasswordForm from "@/components/auth/forms/ForgotPasswordForm";
@@ -19,26 +21,19 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }),
-        }
-      );
+      const response = await authService.forgotPassword(email);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (response.success) {
         setIsSuccess(true);
       } else {
-        setError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+        setError(response.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
       }
     } catch (err: any) {
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      if (err instanceof ApiError) {
+        setError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      }
       console.error("Forgot password error:", err);
     } finally {
       setIsLoading(false);

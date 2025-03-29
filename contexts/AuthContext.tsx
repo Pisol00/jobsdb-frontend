@@ -2,43 +2,28 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser } from '@/lib/api'; // เพิ่มการนำเข้าฟังก์ชันจาก api
-
-interface User {
-  id: string;
-  username: string;
-  fullName: string;
-  email: string;
-  profileImage?: string;
-  twoFactorEnabled?: boolean;
-}
-
-// Define the response type from getCurrentUser
-interface UserResponse {
-  success: boolean;
-  user?: User;
-  message?: string;
-}
+import authService, { UserData, LoginResponse } from '@/lib/authService';
+import { ApiError } from '@/lib/apiService';
 
 interface AuthContextType {
   isLoggedIn: boolean;
-  user: User | null;
+  user: UserData | null;
   loading: boolean;
-  login: (token: string, userData: User) => void;
+  login: (token: string, userData: UserData) => void;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
-  handleLoginResponse: (data: any) => void;
+  handleLoginResponse: (data: LoginResponse) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ตรวจสอบสถานะการเข้าสู่ระบบด้วย token
+  // Check auth status using token
   const checkAuth = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
@@ -51,7 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       
-      // ลองโหลดข้อมูลผู้ใช้จาก localStorage ก่อน
+      // Try to load user info from localStorage first
       const userInfo = localStorage.getItem('userInfo');
       if (userInfo) {
         try {
@@ -63,12 +48,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      // ใช้ฟังก์ชัน getCurrentUser เพื่อตรวจสอบข้อมูลผู้ใช้จาก API
+      // Verify token by fetching user data from API
       try {
-        const response = await getCurrentUser() as UserResponse; // Cast the response to UserResponse type
+        const response = await authService.getCurrentUser();
         
         if (response.success && response.user) {
-          // อัพเดทข้อมูลผู้ใช้
+          // Update user data
           localStorage.setItem('userInfo', JSON.stringify(response.user));
           setUser(response.user);
           setIsLoggedIn(true);
@@ -77,10 +62,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('userInfo');
-        setUser(null);
-        setIsLoggedIn(false);
+        // Handle expired token
+        if (error instanceof ApiError && error.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('userInfo');
+          setUser(null);
+          setIsLoggedIn(false);
+        }
         setLoading(false);
         return false;
       }
@@ -96,7 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isLoggedIn]);
 
-  // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อเริ่มต้น
+  // Initialize auth state
   useEffect(() => {
     const initAuth = async () => {
       await checkAuth();
@@ -105,57 +93,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initAuth();
   }, [checkAuth]);
 
-  // ฟังก์ชันเข้าสู่ระบบ
-  const login = useCallback((token: string, userData: User) => {
+  // Login function
+  const login = useCallback((token: string, userData: UserData) => {
     localStorage.setItem('token', token);
     localStorage.setItem('userInfo', JSON.stringify(userData));
     setUser(userData);
     setIsLoggedIn(true);
   }, []);
 
-  // ฟังก์ชันออกจากระบบ
+  // Logout function
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userInfo');
-    sessionStorage.removeItem('tempToken'); // ล้าง tempToken ด้วย
-    // ไม่ลบ savedUsername เพื่อให้จำไว้สำหรับการเข้าสู่ระบบครั้งถัดไป
+    authService.logout();
     setUser(null);
     setIsLoggedIn(false);
     router.push('/auth/login');
   }, [router]);
 
-  // ฟังก์ชันสำหรับการจัดการกับ 2FA ที่ใช้ dynamic path
-  const handleLoginResponse = useCallback((data: any) => {
+  // Handle login response, including 2FA
+  const handleLoginResponse = useCallback((data: LoginResponse) => {
     if (data.requireTwoFactor) {
-      // ถ้าต้องการ 2FA ให้เก็บ tempToken และ expiresAt (ถ้ามี)
-      sessionStorage.setItem('tempToken', data.tempToken);
+      // Store temp token and expiration for 2FA
+      sessionStorage.setItem('tempToken', data.tempToken || '');
       
-      // เก็บค่า rememberMe ไว้ใช้หลังจากยืนยัน OTP
+      // Store rememberMe preference for after OTP verification
       if (data.rememberMe !== undefined) {
         sessionStorage.setItem('rememberMe', data.rememberMe.toString());
       }
       
-      // ถ้ามี expiresAt ให้จัดเก็บไว้ด้วย
+      // Store expiration time if provided
       if (data.expiresAt) {
         sessionStorage.setItem('expiresAt', data.expiresAt.toString());
         console.log("Saved expiresAt to sessionStorage:", data.expiresAt);
       } else {
-        // กรณีที่ API ไม่ส่ง expiresAt มา ให้คำนวณเองโดยปกติคือ 10 นาที
+        // Calculate expiration time (10 minutes)
         const calculatedExpiresAt = Date.now() + (10 * 60 * 1000);
         sessionStorage.setItem('expiresAt', calculatedExpiresAt.toString());
         console.log("Calculated and saved expiresAt:", calculatedExpiresAt);
       }
       
-      // นำทางไปยังหน้ายืนยัน OTP พร้อม token ใน URL เพื่อให้สามารถใช้ลิงก์ในอีเมลได้
+      // Navigate to OTP verification page
       router.push(`/auth/verify-otp/${data.tempToken}`);
     } else {
-      // ถ้าไม่ต้องการ 2FA ให้เข้าสู่ระบบตามปกติ
-      login(data.token, data.user);
+      // Standard login (no 2FA)
+      login(data.token || '', data.user as UserData);
       router.push('/jobs');
     }
   }, [login, router]);
 
-  const value = {
+  const contextValue = {
     isLoggedIn,
     user,
     loading,
@@ -166,7 +151,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

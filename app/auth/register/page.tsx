@@ -1,10 +1,13 @@
-// app/auth/register/page.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import authService, { RegisterRequest } from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
+import { CONFIG } from "@/config";
+
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import SignupForm, { SignupFormData } from "@/components/auth/forms/SignupForm";
@@ -21,36 +24,32 @@ export default function SignupPage() {
 
     try {
       const { username, email, password } = formData;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password }),
-      });
       
-      const data = await response.json();
+      // Create register request
+      const registerRequest: RegisterRequest = {
+        username,
+        email,
+        password
+      };
       
-      if (response.ok && data.success) {
-        if (data.token) {
+      const response = await authService.register(registerRequest);
+      
+      if (response.success) {
+        if (response.token && response.user) {
           // If API returns a token, login immediately
-          login(data.token, {
-            id: data.user.id,
-            username: data.user.username,
-            fullName: data.user.fullName || "",
-            email: data.user.email,
-            profileImage: data.user.profileImage,
-          });
+          login(response.token, response.user);
           router.push("/jobs");
         } else {
           // Otherwise, redirect to login page
           router.push("/auth/login?registered=true");
         }
-      } else {
-        setError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
       }
     } catch (err: any) {
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      if (err instanceof ApiError) {
+        setError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      }
       console.error("Registration error:", err);
     } finally {
       setIsLoading(false);
@@ -78,7 +77,7 @@ export default function SignupPage() {
           onSubmit={handleSubmit}
           isLoading={isLoading}
           error={error}
-          apiBaseUrl={process.env.NEXT_PUBLIC_API_URL || ""}
+          apiBaseUrl={CONFIG.API_URL}
         />
       </AuthCard>
     </AuthLayout>

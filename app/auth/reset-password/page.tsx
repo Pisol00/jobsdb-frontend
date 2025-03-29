@@ -1,10 +1,11 @@
-// app/auth/reset-password/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, AlertCircle } from "lucide-react";
+import authService from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
+
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
 import ResetPasswordForm from "@/components/auth/forms/ResetPasswordForm";
@@ -28,17 +29,9 @@ export default function ResetPasswordPage() {
       const verifyToken = async () => {
         try {
           setIsVerifyingToken(true);
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-reset-token`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ token }),
-          });
+          const response = await authService.verifyResetToken(token);
           
-          const data = await response.json();
-          
-          if (response.ok && data.success) {
+          if (response.success) {
             setTokenValid(true);
           } else {
             setTokenValid(false);
@@ -46,8 +39,14 @@ export default function ResetPasswordPage() {
           }
         } catch (err) {
           console.error("Token verification error:", err);
+          
+          if (err instanceof ApiError) {
+            setError(err.message || "ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือไม่ถูกต้อง");
+          } else {
+            setError("เกิดข้อผิดพลาดในการตรวจสอบลิงก์ กรุณาลองใหม่อีกครั้ง");
+          }
+          
           setTokenValid(false);
-          setError("เกิดข้อผิดพลาดในการตรวจสอบลิงก์ กรุณาลองใหม่อีกครั้ง");
         } finally {
           setIsVerifyingToken(false);
         }
@@ -66,27 +65,25 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token, password }),
-      });
+      if (!token) {
+        throw new Error("ไม่พบโทเค็นสำหรับรีเซ็ตรหัสผ่าน");
+      }
       
-      const data = await response.json();
+      const response = await authService.resetPassword(token, password);
       
-      if (response.ok && data.success) {
+      if (response.success) {
         setIsSuccess(true);
         // Redirect to login page after 3 seconds
         setTimeout(() => {
           router.push("/auth/login?reset=success");
         }, 3000);
-      } else {
-        setError(data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
       }
     } catch (err: any) {
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      if (err instanceof ApiError) {
+        setError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      }
       console.error("Reset password error:", err);
     } finally {
       setIsLoading(false);

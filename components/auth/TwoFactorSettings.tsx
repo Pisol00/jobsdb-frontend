@@ -6,12 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { AlertCircle, CheckCircle, Shield, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-
-// Type definitions for API responses
-interface ToggleTwoFactorResponse {
-  success: boolean;
-  message: string;
-}
+import authService from "@/lib/authService";
+import { ApiError } from "@/lib/apiService";
 
 /**
  * Component for managing two-factor authentication settings
@@ -29,23 +25,22 @@ export default function TwoFactorSettings() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError("ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่อีกครั้ง");
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await toggleTwoFactor(!isEnabled, token);
+      const response = await authService.toggleTwoFactor(!isEnabled);
       
       if (response.success) {
         setIsEnabled(!isEnabled);
-        setSuccess(response.message);
-      } else {
-        setError(response.message);
+        setSuccess(response.message || 
+          !isEnabled 
+            ? "เปิดใช้งานการยืนยันตัวตนแบบสองขั้นตอนเรียบร้อยแล้ว" 
+            : "ปิดใช้งานการยืนยันตัวตนแบบสองขั้นตอนเรียบร้อยแล้ว"
+        );
       }
     } catch (err) {
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");
+      }
       console.error("Toggle 2FA error:", err);
     } finally {
       setIsLoading(false);
@@ -79,34 +74,6 @@ export default function TwoFactorSettings() {
       </CardContent>
     </Card>
   );
-}
-
-/**
- * API function to toggle two-factor authentication
- */
-async function toggleTwoFactor(
-  enable: boolean, 
-  token: string
-): Promise<ToggleTwoFactorResponse> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/toggle-two-factor`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ enable }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    return {
-      success: false,
-      message: data.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
-    };
-  }
-
-  return data;
 }
 
 // Subcomponents

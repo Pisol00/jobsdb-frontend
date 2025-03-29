@@ -118,10 +118,10 @@ export default function LoginPage() {
     if (isLocked) {
       return;
     }
-
+  
     setError("");
     setIsLoading(true);
-
+  
     try {
       // Create login request
       const loginRequest: LoginRequest = {
@@ -130,32 +130,36 @@ export default function LoginPage() {
         deviceId: formData.deviceId,
         rememberMe: formData.rememberMe
       };
-
+  
       const response = await authService.login(loginRequest);
-
+  
       if (response.success) {
-        // Reset lockout state
+        // Reset lockout state since login is successful
         resetLockout();
         setError("");
+        
+        // If we have "remember me" enabled, save the username for next time
+        if (formData.rememberMe) {
+          localStorage.setItem("savedUsername", formData.usernameOrEmail);
+        }
         
         // Handle login response (supports 2FA)
         handleLoginResponse(response);
       }
     } catch (err: any) {
-      setIsLocked(false);
-      
       if (err instanceof ApiError) {
         // Check lockout status from API response
         if (err.code === "ACCOUNT_LOCKED" && err.data?.lockoutRemaining) {
-          // Account is locked
+          // Account is locked by server
           setIsLocked(true);
           setRemainingLockTime(err.data.lockoutRemaining);
           setError(""); // Clear error when setting isLocked
         } else {
           // Failed login but not locked yet
           setIsLocked(false);
+          
+          // Display message from API which may include remaining attempts
           setError(err.message || "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง");
-          incrementLoginAttempts();
         }
       } else {
         setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");

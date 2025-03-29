@@ -99,13 +99,33 @@ class AuthService extends ApiService {
 
   // Login user
   public async login(data: LoginRequest): Promise<LoginResponse> {
-    // Ensure deviceId is included
-    const deviceId = data.deviceId || getOrCreateDeviceId();
-    
-    return this.post<LoginResponse>('/auth/login', {
-      ...data,
-      deviceId
-    });
+    try {
+      // Ensure deviceId is included for device tracking
+      const deviceId = data.deviceId || getOrCreateDeviceId();
+      
+      // Add user agent information for better tracking and security
+      const options: RequestInit = {
+        headers: {
+          'User-Agent': navigator.userAgent || 'Unknown Browser'
+        }
+      };
+      
+      // Make the login request to the API
+      const response = await this.post<LoginResponse>('/auth/login', {
+        ...data,
+        deviceId
+      }, options);
+      
+      // Handle possible response types:
+      // 1. Success with token - standard login
+      // 2. Success with requireTwoFactor - needs 2FA verification
+      // 3. Success with requireEmailVerification - needs email verification
+      
+      return response;
+    } catch (error) {
+      // Let the caller handle specific API errors
+      throw error;
+    }
   }
 
   // Register user

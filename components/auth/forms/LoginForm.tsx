@@ -9,6 +9,8 @@ import { useSearchParams } from "next/navigation";
 import AlertBox from "../AlertBox";
 import PasswordInput from "../PasswordInput";
 import GoogleLoginButton from "../GoogleLoginButton";
+import AccountLockoutStatus from "../AccountLockoutStatus";
+import CountdownTimer from "../CountdownTimer";
 
 interface LoginFormProps {
   onSubmit: (data: LoginFormData) => Promise<void>;
@@ -51,14 +53,6 @@ export default function LoginForm({
     deviceId: "",
     rememberMe: false,
   });
-  
-  // Format lock time to MM:SS
-  const formatTime = (seconds: number) => {
-    if (!seconds) return "00:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
 
   useEffect(() => {
     // Get or create deviceId for 2FA
@@ -203,21 +197,15 @@ export default function LoginForm({
         />
       )}
 
-      {/* Account lockout message */}
-      {isLocked && remainingLockTime && (
-        <AlertBox 
-          type="warning" 
-          icon={<ShieldAlert className="h-5 w-5 text-orange-500" />}
-          message={`บัญชีถูกล็อคชั่วคราวเนื่องจากล็อกอินผิดหลายครั้ง กรุณาลองใหม่ในอีก ${formatTime(remainingLockTime)}`} 
+      {/* แก้ไขส่วนแสดงข้อความ error เพื่อป้องกันการซ้ำซ้อน */}
+      {isLocked ? (
+        <AccountLockoutStatus 
+          isLocked={isLocked} 
+          remainingLockTime={remainingLockTime} 
+          onExpire={() => setIsLocked && setIsLocked(false)}
         />
-      )}
-
-      {/* Error message */}
-      {error && !isLocked && (
-        <AlertBox 
-          type="error" 
-          message={error} 
-        />
+      ) : (
+        error && <AlertBox type="error" message={error} />
       )}
 
       <Button

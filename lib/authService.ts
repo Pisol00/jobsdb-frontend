@@ -23,6 +23,11 @@ export interface VerifyOTPRequest {
   deviceId?: string;
 }
 
+export interface VerifyEmailRequest {
+  otp: string;
+  token?: string;
+}
+
 export interface ResetPasswordRequest {
   token: string;
   password: string;
@@ -35,12 +40,14 @@ export interface UserData {
   email: string;
   profileImage?: string;
   twoFactorEnabled?: boolean;
+  isEmailVerified?: boolean;
 }
 
 export interface LoginResponse {
   success: boolean;
   token?: string;
   requireTwoFactor?: boolean;
+  requireEmailVerification?: boolean;
   tempToken?: string;
   expiresAt?: number;
   message?: string;
@@ -51,10 +58,19 @@ export interface RegisterResponse {
   success: boolean;
   message: string;
   token?: string;
+  requireEmailVerification?: boolean;
+  tempToken?: string;
   user?: UserData;
 }
 
 export interface VerifyOTPResponse {
+  success: boolean;
+  token?: string;
+  user?: UserData;
+  message?: string;
+}
+
+export interface VerifyEmailResponse {
   success: boolean;
   token?: string;
   user?: UserData;
@@ -106,6 +122,21 @@ class AuthService extends ApiService {
       ...data,
       deviceId
     });
+  }
+
+  // Verify email
+  public async verifyEmail(data: VerifyEmailRequest): Promise<VerifyEmailResponse> {
+    return this.post<VerifyEmailResponse>('/auth/verify-email', data);
+  }
+  
+  // Verify email token
+  public async verifyEmailToken(token: string): Promise<ApiResponse> {
+    return this.post<ApiResponse>('/auth/verify-email-token', { token });
+  }
+  
+  // Resend email verification
+  public async resendEmailVerification(email: string): Promise<ApiResponse> {
+    return this.post<ApiResponse>('/auth/resend-email-verification', { email });
   }
 
   // Verify temp token

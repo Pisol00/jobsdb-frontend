@@ -2,43 +2,64 @@
 import { useState, useEffect } from "react";
 
 interface CountdownTimerProps {
-  initialSeconds: number;
+  initialSeconds?: number;
+  expiryTimestamp?: number; // เพิ่มตัวเลือกให้รับ timestamp ได้ด้วย
   onExpire?: () => void;
   format?: "mm:ss" | "seconds" | "minutes";
   className?: string;
-  warningThreshold?: number; // seconds when the timer should change to warning state
+  warningThreshold?: number;
 }
 
 export default function CountdownTimer({
   initialSeconds,
+  expiryTimestamp,
   onExpire,
   format = "mm:ss",
   className = "",
-  warningThreshold = 60, // Default 60 seconds
+  warningThreshold = 60,
 }: CountdownTimerProps) {
-  const [seconds, setSeconds] = useState(initialSeconds);
+  const [seconds, setSeconds] = useState<number>(0);
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
-    // Reset if initial value changes
-    setSeconds(initialSeconds);
-    setIsExpired(false);
-  }, [initialSeconds]);
-
-  useEffect(() => {
-    if (seconds <= 0) {
-      setIsExpired(true);
-      if (onExpire) onExpire();
-      return;
+    // กำหนดเวลาหมดอายุจริง (ถ้าไม่มีให้ใช้ initialSeconds)
+    let expiry: number;
+    if (expiryTimestamp) {
+      // ใช้ timestamp ที่ส่งมาโดยตรง
+      expiry = expiryTimestamp;
+    } else if (initialSeconds) {
+      // คำนวณจาก initialSeconds
+      expiry = Date.now() + initialSeconds * 1000;
+    } else {
+      // ถ้าไม่มีทั้งสอง ใช้ค่าเริ่มต้น (ป้องกันความผิดพลาด)
+      expiry = Date.now() + 60 * 1000; // 1 นาที
     }
 
-    const timer = setInterval(() => {
-      setSeconds((prev) => prev - 1);
-    }, 1000);
+    // ฟังก์ชันคำนวณเวลาที่เหลือจากเวลาจริง
+    const calculateRemainingTime = () => {
+      const now = Date.now();
+      const diff = Math.max(0, expiry - now);
+      const remainingSeconds = Math.floor(diff / 1000);
+      
+      setSeconds(remainingSeconds);
+      
+      if (remainingSeconds <= 0 && !isExpired) {
+        setIsExpired(true);
+        if (onExpire) onExpire();
+      }
+    };
 
+    // คำนวณครั้งแรกทันที
+    calculateRemainingTime();
+
+    // ตั้งเวลาให้คำนวณทุกวินาที
+    const timer = setInterval(calculateRemainingTime, 1000);
+    
+    // clear timer เมื่อ component unmount
     return () => clearInterval(timer);
-  }, [seconds, onExpire]);
+  }, [expiryTimestamp, initialSeconds, onExpire, isExpired]);
 
+  // ฟังก์ชันแปลงเวลาเป็นรูปแบบต่างๆ
   const formatTime = (totalSeconds: number): string => {
     if (format === "seconds") {
       return totalSeconds.toString();
@@ -54,7 +75,7 @@ export default function CountdownTimer({
       .padStart(2, "0")}`;
   };
 
-  // Determine styling based on time remaining
+  // กำหนดสีตามเวลาที่เหลือ
   const getColorClass = () => {
     if (isExpired) return "text-red-600";
     if (seconds <= warningThreshold) return "text-red-600";

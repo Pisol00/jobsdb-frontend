@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import authService from "@/lib/authService";
@@ -24,7 +24,7 @@ export default function VerifyOTPPage() {
   const [tokenError, setTokenError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTokenChecking, setIsTokenChecking] = useState(true);
-  const [countdown, setCountdown] = useState(600); // 10 minutes (600 seconds)
+  const [expiryTimestamp, setExpiryTimestamp] = useState<number | null>(null);
   const [isTokenRedirecting, setIsTokenRedirecting] = useState(false);
   
   // Function to verify if token is still valid
@@ -61,7 +61,7 @@ export default function VerifyOTPPage() {
         if (!isValid) {
           console.log("Token is invalid or has been replaced");
           setTokenError(true);
-          setCountdown(10);
+          setExpiryTimestamp(Date.now() + 10 * 1000); // 10 seconds countdown before redirect
           setIsTokenChecking(false);
           return;
         }
@@ -71,47 +71,23 @@ export default function VerifyOTPPage() {
         setTempToken(tokenFromUrl);
         sessionStorage.setItem('tempToken', tokenFromUrl);
         
-        // Handle expiresAt
+        // Handle expiresAt - timestamp approach
+        let expiry: number;
+        
         if (urlExpiresAt) {
           // If expiresAt is in URL, use that value
-          const expiresAt = parseInt(urlExpiresAt);
+          expiry = parseInt(urlExpiresAt);
           sessionStorage.setItem('expiresAt', urlExpiresAt);
-          
-          const now = Date.now();
-          const diff = Math.floor((expiresAt - now) / 1000);
-          
-          if (diff > 0) {
-            console.log("Setting countdown from URL expiresAt:", diff);
-            setCountdown(diff);
-          } else {
-            // If already expired
-            console.log("URL OTP has expired");
-            setCountdown(0);
-          }
         } else if (storedExpiresAt) {
           // If no expiresAt in URL but exists in sessionStorage
-          const expiresAt = parseInt(storedExpiresAt);
-          const now = Date.now();
-          const diff = Math.floor((expiresAt - now) / 1000);
-          
-          if (diff > 0) {
-            console.log("Setting countdown from sessionStorage:", diff);
-            setCountdown(diff);
-          } else {
-            // If expired, create new time
-            const newExpiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
-            sessionStorage.setItem('expiresAt', newExpiresAt.toString());
-            console.log("Creating new expiresAt:", newExpiresAt);
-            setCountdown(600);
-          }
+          expiry = parseInt(storedExpiresAt);
         } else {
           // If no expiresAt in URL or sessionStorage
-          const newExpiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
-          sessionStorage.setItem('expiresAt', newExpiresAt.toString());
-          console.log("No expiresAt found, creating new one:", newExpiresAt);
-          setCountdown(600);
+          expiry = Date.now() + (10 * 60 * 1000); // 10 minutes
+          sessionStorage.setItem('expiresAt', expiry.toString());
         }
         
+        setExpiryTimestamp(expiry);
         setTokenError(false);
       } else {
         // If token from URL is invalid
@@ -122,7 +98,7 @@ export default function VerifyOTPPage() {
           if (!isStoredTokenValid) {
             console.log("Stored token is invalid or has been replaced");
             setTokenError(true);
-            setCountdown(10);
+            setExpiryTimestamp(Date.now() + 10 * 1000);
             setIsTokenChecking(false);
             return;
           }
@@ -146,12 +122,21 @@ export default function VerifyOTPPage() {
             return;
           }
           
+          // Set expiryTimestamp
+          if (storedExpiresAt) {
+            setExpiryTimestamp(parseInt(storedExpiresAt));
+          } else {
+            const newExpiry = Date.now() + (10 * 60 * 1000);
+            setExpiryTimestamp(newExpiry);
+            sessionStorage.setItem('expiresAt', newExpiry.toString());
+          }
+          
           setTokenError(false);
         } else {
           // If no valid token in URL or sessionStorage
           console.log("No valid token found");
           setTokenError(true);
-          setCountdown(10);
+          setExpiryTimestamp(Date.now() + 10 * 1000);
         }
       }
       
@@ -164,14 +149,21 @@ export default function VerifyOTPPage() {
     getOrCreateDeviceId();
   }, [params, router]);
   
-  // Effect for redirecting back to login when countdown expires
-  useEffect(() => {
-    if (countdown === 0 && tokenError) {
+  // Function for going back to login when countdown expires
+  const handleCountdownExpire = useCallback(() => {
+    if (tokenError) {
       // If countdown expires and there's a token error, go back to login
-      router.push('/auth/login');
+      handleBackToLogin();
     }
-  }, [countdown, tokenError, router]);
+  }, [tokenError]);
   
+  // Function for going back to login
+  const handleBackToLogin = useCallback(() => {
+    sessionStorage.removeItem('tempToken');
+    sessionStorage.removeItem('expiresAt');
+    router.push('/auth/login');
+  }, [router]);
+
   const handleSubmit = async (data: { otp: string; rememberDevice: boolean }) => {
     if (tokenError) {
       setError("มีปัญหากับรหัสยืนยัน กรุณากลับไปเข้าสู่ระบบอีกครั้ง");
@@ -222,13 +214,6 @@ export default function VerifyOTPPage() {
     }
   };
   
-  // Function for going back to login
-  const handleBackToLogin = () => {
-    sessionStorage.removeItem('tempToken');
-    sessionStorage.removeItem('expiresAt');
-    router.push('/auth/login');
-  };
-  
   // If checking token
   if (isTokenChecking) {
     return (
@@ -272,7 +257,7 @@ export default function VerifyOTPPage() {
           <ErrorMessage
             title="ลิงก์ยืนยันตัวตนไม่ถูกต้อง"
             message="ลิงก์ยืนยันตัวตนไม่ถูกต้อง ถูกยกเลิก หรือหมดอายุแล้ว"
-            details={`กำลังนำคุณกลับไปหน้าเข้าสู่ระบบใน ${countdown} วินาที`}
+            details={`กำลังนำคุณกลับไปหน้าเข้าสู่ระบบอัตโนมัติ`}
           />
         </AuthCard>
       </AuthLayout>
@@ -298,13 +283,8 @@ export default function VerifyOTPPage() {
           onSubmit={handleSubmit}
           isLoading={isLoading}
           error={error}
-          countdownSeconds={countdown}
-          onCountdownExpire={() => {
-            // Redirect to login after countdown expires
-            setTimeout(() => {
-              handleBackToLogin();
-            }, 2000);
-          }}
+          expiryTimestamp={expiryTimestamp || undefined}
+          onCountdownExpire={handleCountdownExpire}
         />
       </AuthCard>
     </AuthLayout>

@@ -13,7 +13,8 @@ interface OTPVerificationFormProps {
   onSubmit: (data: { otp: string; rememberDevice: boolean }) => Promise<void>;
   isLoading: boolean;
   error?: string;
-  countdownSeconds: number;
+  countdownSeconds?: number;
+  expiryTimestamp?: number; // เพิ่มตัวเลือกนี้
   onCountdownExpire?: () => void;
 }
 
@@ -22,6 +23,7 @@ export default function OTPVerificationForm({
   isLoading,
   error,
   countdownSeconds,
+  expiryTimestamp, // รับค่า expiryTimestamp
   onCountdownExpire,
 }: OTPVerificationFormProps) {
   const [otp, setOTP] = useState("");
@@ -37,18 +39,31 @@ export default function OTPVerificationForm({
     await onSubmit({ otp, rememberDevice });
   };
 
-  const isExpired = countdownSeconds <= 0;
+  // ตรวจสอบว่าเวลาหมดแล้วหรือไม่ - ใช้ expiryTimestamp ถ้ามี
+  const isExpired = expiryTimestamp 
+    ? Date.now() > expiryTimestamp 
+    : countdownSeconds !== undefined && countdownSeconds <= 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="mb-5 text-center">
         <div className="text-sm text-gray-500 mb-1">รหัสจะหมดอายุใน</div>
         <div className="text-xl font-mono font-bold">
-          <CountdownTimer 
-            initialSeconds={countdownSeconds} 
-            onExpire={onCountdownExpire}
-            warningThreshold={60}
-          />
+          {expiryTimestamp ? (
+            // ใช้ expiryTimestamp แทน countdownSeconds
+            <CountdownTimer 
+              expiryTimestamp={expiryTimestamp}
+              onExpire={onCountdownExpire}
+              warningThreshold={60}
+            />
+          ) : (
+            // ใช้ initialSeconds เป็น fallback
+            <CountdownTimer 
+              initialSeconds={countdownSeconds} 
+              onExpire={onCountdownExpire}
+              warningThreshold={60}
+            />
+          )}
         </div>
       </div>
       

@@ -14,12 +14,11 @@ export default function VerifyOTPDefaultPage() {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
   const [hasValidToken, setHasValidToken] = useState(false);
-  const [countdown, setCountdown] = useState(5);
+  const [expiryTimestamp, setExpiryTimestamp] = useState<number | null>(null);
   const [countdownFinished, setCountdownFinished] = useState(false);
   
   // Use useRef to prevent duplicate redirects
   const redirectedRef = useRef(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Function to verify token validity
   const verifyTempToken = async (token: string) => {
@@ -81,6 +80,8 @@ export default function VerifyOTPDefaultPage() {
             sessionStorage.removeItem("tempToken");
             sessionStorage.removeItem("expiresAt");
             setHasValidToken(false);
+            // Set expiry for 10 seconds in the future
+            setExpiryTimestamp(Date.now() + 10 * 1000);
             setIsChecking(false);
             return;
           }
@@ -100,6 +101,8 @@ export default function VerifyOTPDefaultPage() {
               sessionStorage.removeItem("tempToken");
               sessionStorage.removeItem("expiresAt");
               setHasValidToken(false);
+              // Set expiry for 10 seconds in the future
+              setExpiryTimestamp(Date.now() + 10 * 1000);
               setIsChecking(false);
             }
           } else {
@@ -115,24 +118,21 @@ export default function VerifyOTPDefaultPage() {
         } catch (error) {
           console.error("Error in token verification:", error);
           setHasValidToken(false);
+          // Set expiry for 10 seconds in the future
+          setExpiryTimestamp(Date.now() + 10 * 1000);
           setIsChecking(false);
         }
       } else {
         // If no token or invalid token
         console.log("No valid token found");
         setHasValidToken(false);
+        // Set expiry for 10 seconds in the future
+        setExpiryTimestamp(Date.now() + 10 * 1000);
         setIsChecking(false);
       }
     };
 
     checkToken();
-    
-    // Clean up timer when component unmounts
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
   }, []);
 
   // Effect for redirect when token is valid
@@ -186,16 +186,21 @@ export default function VerifyOTPDefaultPage() {
               message="ไม่พบข้อมูลการยืนยัน 2FA หรือข้อมูลหมดอายุแล้ว หรือลิงก์ถูกยกเลิกแล้ว"
               details={
                 <span>
-                  กำลังนำคุณกลับไปหน้าเข้าสู่ระบบใน{" "}
-                  <CountdownTimer 
-                    initialSeconds={countdown} 
-                    onExpire={() => setCountdownFinished(true)}
-                    className="font-bold text-red-500"
-                  />
-                  {" "}วินาที
+                  กำลังนำคุณกลับไปหน้าเข้าสู่ระบบอัตโนมัติ
                 </span>
               }
             />
+            
+            <div className="mt-4 text-sm text-gray-600">
+              กลับไปหน้าเข้าสู่ระบบในอีก{" "}
+              {expiryTimestamp && (
+                <CountdownTimer 
+                  expiryTimestamp={expiryTimestamp} 
+                  onExpire={() => setCountdownFinished(true)}
+                  className="font-bold text-red-500"
+                />
+              )} วินาที
+            </div>
           
             <Button
               onClick={handleBackToLogin}

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import authService from "@/lib/authService";
+import { resetFailedLoginAttempts } from "@/utils/security"; // เพิ่มการนำเข้าฟังก์ชัน
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
@@ -17,31 +19,31 @@ export default function OAuthCallbackPage() {
       return;
     }
     
-    // Fetch user data from API
+    // แก้ไข: ใช้ authService แทนการใช้ fetch API โดยตรง
     const fetchUserData = async () => {
       try {
         // Set token before API call
         localStorage.setItem("token", token as string);
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // แก้ไข: ใช้ authService.getCurrentUser() แทนการใช้ fetch โดยตรง
+        const response = await authService.getCurrentUser();
         
-        if (!response.ok) {
-          throw new Error("ไม่สามารถดึงข้อมูลผู้ใช้ได้");
-        }
-        
-        const data = await response.json();
-        
-        if (data.success && data.user) {
+        if (response.success && response.user) {
+          // แก้ไข: รีเซ็ตการนับความพยายามล็อกอินที่ล้มเหลว
+          const deviceId = window.navigator.userAgent || 'oauth-device';
+          const ip = localStorage.getItem('lastIpAddress') || 'unknown';
+          await resetFailedLoginAttempts(
+            response.user.email,
+            ip,
+            deviceId
+          );
+          
           // Login with user data
-          login(token as string, data.user);
+          login(token as string, response.user);
           // Navigate to home page
           router.push("/jobs");
         } else {
-          setError(data.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+          setError(response.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
         }
       } catch (err) {
         console.error("OAuth callback error:", err);

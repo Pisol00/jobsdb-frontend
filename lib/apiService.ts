@@ -85,7 +85,7 @@ export class ApiService {
       // Handle network errors
       if (error instanceof Error) {
         throw new ApiError(
-          'Network error. Please check your connection.',
+          'เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาตรวจสอบการเชื่อมต่อของคุณ',
           0,
           'NETWORK_ERROR',
           error
@@ -94,7 +94,7 @@ export class ApiService {
 
       // Handle other errors
       throw new ApiError(
-        'An unknown error occurred',
+        'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ',
         0,
         'UNKNOWN_ERROR',
         error

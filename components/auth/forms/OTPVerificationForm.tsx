@@ -1,5 +1,5 @@
 // components/auth/forms/OTPVerificationForm.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,21 +28,49 @@ export default function OTPVerificationForm({
 }: OTPVerificationFormProps) {
   const [otp, setOTP] = useState("");
   const [rememberDevice, setRememberDevice] = useState(true);
+  const [isExpired, setIsExpired] = useState(false);
+  
+  // ตรวจสอบหมดเวลาเมื่อโหลดคอมโพเนนท์
+  useEffect(() => {
+    if (expiryTimestamp) {
+      setIsExpired(Date.now() > expiryTimestamp);
+    } else if (countdownSeconds !== undefined) {
+      setIsExpired(countdownSeconds <= 0);
+    }
+  }, [expiryTimestamp, countdownSeconds]);
+
+  // แก้ไข: เพิ่มการตรวจสอบว่าหมดเวลาหรือไม่เมื่อเวลาผ่านไป
+  useEffect(() => {
+    if (!expiryTimestamp) return;
+    
+    const checkExpiry = () => {
+      const nowExpired = Date.now() > expiryTimestamp;
+      if (nowExpired && !isExpired) {
+        setIsExpired(true);
+        if (onCountdownExpire) {
+          onCountdownExpire();
+        }
+      }
+    };
+    
+    // ตรวจสอบทันที
+    checkExpiry();
+    
+    // ตรวจสอบทุกวินาที
+    const interval = setInterval(checkExpiry, 1000);
+    
+    return () => clearInterval(interval);
+  }, [expiryTimestamp, isExpired, onCountdownExpire]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!otp) {
-      return; // Don't submit if OTP is empty
+    if (!otp || isExpired) {
+      return; // Don't submit if OTP is empty or expired
     }
     
     await onSubmit({ otp, rememberDevice });
   };
-
-  // ตรวจสอบว่าเวลาหมดแล้วหรือไม่ - ใช้ expiryTimestamp ถ้ามี
-  const isExpired = expiryTimestamp 
-    ? Date.now() > expiryTimestamp 
-    : countdownSeconds !== undefined && countdownSeconds <= 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -53,14 +81,20 @@ export default function OTPVerificationForm({
             // ใช้ expiryTimestamp แทน countdownSeconds
             <CountdownTimer 
               expiryTimestamp={expiryTimestamp}
-              onExpire={onCountdownExpire}
+              onExpire={() => {
+                setIsExpired(true);
+                if (onCountdownExpire) onCountdownExpire();
+              }}
               warningThreshold={60}
             />
           ) : (
             // ใช้ initialSeconds เป็น fallback
             <CountdownTimer 
               initialSeconds={countdownSeconds} 
-              onExpire={onCountdownExpire}
+              onExpire={() => {
+                setIsExpired(true);
+                if (onCountdownExpire) onCountdownExpire();
+              }}
               warningThreshold={60}
             />
           )}
@@ -72,7 +106,7 @@ export default function OTPVerificationForm({
         value={otp}
         onChange={setOTP}
         helperText="กรุณาตรวจสอบกล่องข้อความในอีเมลของคุณ"
-        disabled={isExpired || isLoading}
+        disabled={isExpired || isLoading} // ปรับปรุง: Disable input เมื่อหมดเวลาหรือกำลังโหลด
       />
       
       {/* Remember device checkbox */}

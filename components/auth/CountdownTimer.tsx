@@ -22,6 +22,9 @@ export default function CountdownTimer({
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
+    // รีเซ็ต isExpired เมื่อมีการเปลี่ยนแปลง expiryTimestamp หรือ initialSeconds
+    setIsExpired(false);
+    
     // กำหนดเวลาหมดอายุจริง (ถ้าไม่มีให้ใช้ initialSeconds)
     let expiry: number;
     if (expiryTimestamp) {
@@ -57,7 +60,7 @@ export default function CountdownTimer({
     
     // clear timer เมื่อ component unmount
     return () => clearInterval(timer);
-  }, [expiryTimestamp, initialSeconds, onExpire, isExpired]);
+  }, [expiryTimestamp, initialSeconds, onExpire]); // ลบ isExpired ออกจาก dependencies
 
   // ฟังก์ชันแปลงเวลาเป็นรูปแบบต่างๆ
   const formatTime = (totalSeconds: number): string => {

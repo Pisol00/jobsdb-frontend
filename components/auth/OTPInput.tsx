@@ -1,4 +1,5 @@
 // components/auth/OTPInput.tsx
+import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
@@ -29,6 +30,15 @@ export default function OTPInput({
   autoFocus = true,
   disabled = false,
 }: OTPInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // เมื่อ disabled เปลี่ยน ให้ทำการ blur input ถ้าปิดใช้งาน
+  useEffect(() => {
+    if (disabled && inputRef.current) {
+      inputRef.current.blur();
+    }
+  }, [disabled]);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Only allow digits and limit to maxLength
     const sanitizedValue = e.target.value
@@ -46,6 +56,7 @@ export default function OTPInput({
         </Label>
       )}
       <Input
+        ref={inputRef}
         id={id}
         type="text"
         inputMode="numeric"
@@ -54,10 +65,10 @@ export default function OTPInput({
         onChange={handleChange}
         className={`text-center text-2xl font-mono tracking-widest bg-white/70 focus:bg-white border-gray-300 focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all ${
           error ? "border-red-300" : ""
-        }`}
+        } ${disabled ? "opacity-50 bg-gray-100" : ""}`}
         required={required}
         placeholder={placeholder}
-        autoFocus={autoFocus}
+        autoFocus={autoFocus && !disabled}
         disabled={disabled}
       />
       {helperText && !error && (

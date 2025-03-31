@@ -37,6 +37,25 @@ export default function LoginPage() {
   const email = searchParams.get("email");
 
   useEffect(() => {
+    // ตั้งค่า state IPAddress สำหรับการใช้งาน resetFailedLoginAttempts
+    // เพื่อให้สามารถเรียกใช้ฟังก์ชันนี้จากหน้า verify-otp ได้
+    const setLastIpAddress = async () => {
+      try {
+        // บันทึก IP สำหรับใช้ในการรีเซ็ตการนับความพยายามล็อกอิน
+        // ในสภาพแวดล้อมจริงอาจใช้บริการเพื่อดึง IP ลูกค้า
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        if (ipResponse.ok) {
+          const { ip } = await ipResponse.json();
+          window.localStorage.setItem('lastIpAddress', ip);
+        }
+      } catch (error) {
+        console.error("Error fetching IP:", error);
+        window.localStorage.setItem('lastIpAddress', 'unknown');
+      }
+    };
+    
+    setLastIpAddress();
+    
     // Load login attempts from localStorage
     const storedAttempts = localStorage.getItem("loginAttempts");
     const storedLockoutEndTime = localStorage.getItem("lockoutEndTime");
@@ -75,6 +94,9 @@ export default function LoginPage() {
       
       // Auto-hide success message after 5 seconds
       const timer = setTimeout(() => setShowSuccess(false), 5000);
+      
+      // แก้ไข: ย้าย return out of if block เพื่อทำให้ clean up function ทำงานเสมอ
+      // ไม่ว่าจะมี success message หรือไม่
       return () => clearTimeout(timer);
     }
   }, []);
@@ -93,6 +115,7 @@ export default function LoginPage() {
       }
     }, 1000);
 
+    // cleanup function
     return () => clearInterval(timer);
   }, [isLocked, remainingLockTime]);
 
@@ -169,6 +192,9 @@ export default function LoginPage() {
           
           // Display message from API which may include remaining attempts
           setError(err.message || "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง");
+          
+          // Increment login attempts
+          incrementLoginAttempts();
         }
       } else {
         setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง");

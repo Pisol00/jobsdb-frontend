@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, memo } from 'react';
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import authService from "@/lib/authService";
 import { ApiError } from "@/lib/apiService";
 import { getOrCreateDeviceId } from "@/components/auth/utilities/authValidation";
+import { resetFailedLoginAttempts } from "@/utils/security"; // เพิ่มการนำเข้าฟังก์ชัน
 
 import AuthLayout from "@/components/auth/AuthLayout";
 import AuthCard from "@/components/auth/AuthCard";
@@ -17,7 +18,12 @@ import { Loader2 } from "lucide-react";
 export default function VerifyOTPPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+  
+  const token = params.token as string;
+  // ใช้ query parameter สำหรับ expiresAt
+  const expiresAtStr = searchParams.get('expiresAt');
   
   const [otp, setOTP] = useState("");
   const [tempToken, setTempToken] = useState("");
@@ -41,14 +47,11 @@ export default function VerifyOTPPage() {
   };
   
   useEffect(() => {
-    // Get token from URL parameters
-    const tokenFromUrl = params.token as string;
+    // Get token from params
+    const tokenFromParams = token;
     
-    // Get expiresAt from URL query parameters
-    const searchParams = new URLSearchParams(window.location.search);
-    const urlExpiresAt = searchParams.get('expiresAt');
-    
-    // Get expiration time and token from sessionStorage
+    // Get expiration time from query params or sessionStorage
+    const queryExpiresAt = expiresAtStr ? parseInt(expiresAtStr, 10) : null;
     const storedExpiresAt = sessionStorage.getItem('expiresAt');
     const storedToken = sessionStorage.getItem('tempToken');
     
@@ -56,9 +59,9 @@ export default function VerifyOTPPage() {
     const checkToken = async () => {
       setIsTokenChecking(true);
 
-      if (tokenFromUrl && tokenFromUrl !== 'undefined' && tokenFromUrl !== 'null' && tokenFromUrl.length > 10) {
+      if (tokenFromParams && tokenFromParams !== 'undefined' && tokenFromParams !== 'null' && tokenFromParams.length > 10) {
         // Verify token with backend
-        const isValid = await verifyTempToken(tokenFromUrl);
+        const isValid = await verifyTempToken(tokenFromParams);
         
         if (!isValid) {
           console.log("Token is invalid or has been replaced");
@@ -70,16 +73,16 @@ export default function VerifyOTPPage() {
         
         // If token is valid, use token from URL
         console.log("Using token from URL");
-        setTempToken(tokenFromUrl);
-        sessionStorage.setItem('tempToken', tokenFromUrl);
+        setTempToken(tokenFromParams);
+        sessionStorage.setItem('tempToken', tokenFromParams);
         
-        // Handle expiresAt - timestamp approach
+        // Handle expiresAt - priority: query param > sessionStorage > default
         let expiry: number;
         
-        if (urlExpiresAt) {
-          // If expiresAt is in URL, use that value
-          expiry = parseInt(urlExpiresAt);
-          sessionStorage.setItem('expiresAt', urlExpiresAt);
+        if (queryExpiresAt) {
+          // If expiresAt is in URL query, use that value
+          expiry = queryExpiresAt;
+          sessionStorage.setItem('expiresAt', queryExpiresAt.toString());
         } else if (storedExpiresAt) {
           // If no expiresAt in URL but exists in sessionStorage
           expiry = parseInt(storedExpiresAt);
@@ -110,7 +113,7 @@ export default function VerifyOTPPage() {
           setTempToken(storedToken);
           
           // If URL doesn't match valid token, redirect to correct URL
-          if (tokenFromUrl !== storedToken) {
+          if (tokenFromParams !== storedToken) {
             setIsTokenRedirecting(true);
             console.log("Redirecting to correct token URL");
             
@@ -149,11 +152,11 @@ export default function VerifyOTPPage() {
     
     // Ensure deviceId exists
     getOrCreateDeviceId();
-  }, [params, router]);
+  }, [token, expiresAtStr, router]);
   
   // Function for going back to login when countdown expires
   const handleCountdownExpire = useCallback(() => {
-    // แสดงกล่องข้อความเมื่อเวลาหมด แทนการใช้ alert
+    // แสดงกล่องข้อความเมื่อเวลาหมด
     setShowExpiredAlert(true);
   }, []);
   
@@ -161,6 +164,7 @@ export default function VerifyOTPPage() {
   const handleBackToLogin = useCallback(() => {
     sessionStorage.removeItem('tempToken');
     sessionStorage.removeItem('expiresAt');
+    sessionStorage.removeItem('rememberMe');
     router.push('/auth/login');
   }, [router]);
 
@@ -184,7 +188,7 @@ export default function VerifyOTPPage() {
       
       const response = await authService.verifyOTP({
         otp: data.otp,
-        tempToken,
+        tempToken: tempToken || token,
         rememberDevice: data.rememberDevice,
         deviceId
       });
@@ -193,6 +197,15 @@ export default function VerifyOTPPage() {
         // Clear session storage data
         sessionStorage.removeItem('tempToken');
         sessionStorage.removeItem('expiresAt');
+        sessionStorage.removeItem('rememberMe');
+        
+        // เพิ่ม: รีเซ็ตการนับความพยายามล็อกอินที่ล้มเหลว
+        const ip = window.localStorage.getItem('lastIpAddress') || 'unknown';
+        await resetFailedLoginAttempts(
+          response.user.email,
+          ip,
+          deviceId
+        );
         
         // Login with real token
         login(response.token, response.user);

@@ -106,48 +106,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     authService.logout();
     setUser(null);
     setIsLoggedIn(false);
+    
+    // Clear session storage as well
+    sessionStorage.removeItem('tempToken');
+    sessionStorage.removeItem('expiresAt');
+    sessionStorage.removeItem('rememberMe');
+    
     router.push('/auth/login');
   }, [router]);
 
   // Handle login response, including 2FA and email verification
-const handleLoginResponse = useCallback((data: LoginResponse) => {
-  if (data.requireTwoFactor) {
-    // 2FA is required - redirect to OTP verification
-    
-    // Store temp token and expiration for 2FA
-    sessionStorage.setItem('tempToken', data.tempToken || '');
-    
-    // Store rememberMe preference for after OTP verification
-    if (data.rememberMe !== undefined) {
-      sessionStorage.setItem('rememberMe', data.rememberMe.toString());
-    }
-    
-    // Store expiration time if provided
-    if (data.expiresAt) {
-      sessionStorage.setItem('expiresAt', data.expiresAt.toString());
-      console.log("Saved expiresAt to sessionStorage:", data.expiresAt);
+  const handleLoginResponse = useCallback((data: LoginResponse) => {
+    if (data.requireTwoFactor) {
+      // 2FA is required - redirect to OTP verification
+      
+      // Store temp token and expiration for 2FA
+      sessionStorage.setItem('tempToken', data.tempToken || '');
+      
+      // Store rememberMe preference for after OTP verification
+      if (data.rememberMe !== undefined) {
+        sessionStorage.setItem('rememberMe', data.rememberMe.toString());
+      }
+      
+      // Calculate expiration time if not provided
+      let expiresAtTimestamp: number;
+      
+      // Store expiration time if provided
+      if (data.expiresAt) {
+        expiresAtTimestamp = data.expiresAt;
+        sessionStorage.setItem('expiresAt', data.expiresAt.toString());
+        console.log("Saved expiresAt to sessionStorage:", data.expiresAt);
+      } else {
+        // Calculate expiration time (10 minutes)
+        expiresAtTimestamp = Date.now() + (10 * 60 * 1000);
+        sessionStorage.setItem('expiresAt', expiresAtTimestamp.toString());
+        console.log("Calculated and saved expiresAt:", expiresAtTimestamp);
+      }
+      
+      // แก้ไข: ส่ง expiresAt ไปกับ URL เพื่อให้ route ทำงานถูกต้อง
+      router.push(`/auth/verify-otp/${data.tempToken}?expiresAt=${expiresAtTimestamp}`);
+    } else if (data.requireEmailVerification) {
+      // Email verification is required
+      if (data.tempToken) {
+        router.push(`/auth/verify-email/${data.tempToken}?email=${encodeURIComponent(data.user?.email || '')}`);
+      } else {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(data.user?.email || '')}`);
+      }
     } else {
-      // Calculate expiration time (10 minutes)
-      const calculatedExpiresAt = Date.now() + (10 * 60 * 1000);
-      sessionStorage.setItem('expiresAt', calculatedExpiresAt.toString());
-      console.log("Calculated and saved expiresAt:", calculatedExpiresAt);
+      // Standard login (no 2FA or email verification needed)
+      login(data.token || '', data.user as UserData);
+      router.push('/jobs');
     }
-    
-    // Navigate to OTP verification page
-    router.push(`/auth/verify-otp/${data.tempToken}`);
-  } else if (data.requireEmailVerification) {
-    // Email verification is required
-    if (data.tempToken) {
-      router.push(`/auth/verify-email?token=${data.tempToken}&email=${encodeURIComponent(data.user?.email || '')}`);
-    } else {
-      router.push(`/auth/verify-email?email=${encodeURIComponent(data.user?.email || '')}`);
-    }
-  } else {
-    // Standard login (no 2FA or email verification needed)
-    login(data.token || '', data.user as UserData);
-    router.push('/jobs');
-  }
-}, [login, router]);
+  }, [login, router]);
 
   const contextValue = {
     isLoggedIn,

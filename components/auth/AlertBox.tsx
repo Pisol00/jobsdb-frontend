@@ -20,19 +20,6 @@ type AlertBoxProps = {
   centered?: boolean;
 };
 
-// ฟังก์ชันสำหรับป้องกัน XSS ในข้อความ
-const sanitizeText = (text: string): string => {
-  // แทนที่อักขระพิเศษที่อาจใช้ในการโจมตี XSS ด้วยเครื่องหมายอื่น
-  return text
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/`/g, '&#96;')
-    .replace(/\(/g, '&#40;')
-    .replace(/\)/g, '&#41;');
-};
-
 export default function AlertBox({
   type,
   title,
@@ -79,13 +66,6 @@ export default function AlertBox({
 
   const styles = getAlertStyles();
 
-  // สร้างข้อความที่ปลอดภัยจาก XSS
-  const safeMessage = typeof message === 'string' 
-    ? <div dangerouslySetInnerHTML={{ __html: sanitizeText(message) }} />
-    : message;
-  
-  const safeTitle = title ? sanitizeText(title) : '';
-
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -100,8 +80,8 @@ export default function AlertBox({
         {styles.icon}
       </span>
       <div>
-        {title && <p className={`font-semibold ${styles.title}`} dangerouslySetInnerHTML={{ __html: safeTitle }} />}
-        {safeMessage}
+        {title && <p className={`font-semibold ${styles.title}`}>{title}</p>}
+        <span>{message}</span>
       </div>
     </motion.div>
   );
@@ -124,9 +104,9 @@ export function SuccessMessage({
       className="bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col items-center text-center"
     >
       <CheckCircle className="h-12 w-12 text-green-500 mb-3" />
-      <h3 className="text-lg font-semibold text-green-800">{sanitizeText(title)}</h3>
-      <p className="text-green-700 mt-2">{sanitizeText(message)}</p>
-      {details && <p className="text-sm text-green-600 mt-2">{sanitizeText(details)}</p>}
+      <h3 className="text-lg font-semibold text-green-800">{title}</h3>
+      <p className="text-green-700 mt-2">{message}</p>
+      {details && <p className="text-sm text-green-600 mt-2">{details}</p>}
     </motion.div>
   );
 }
@@ -148,9 +128,9 @@ export function ErrorMessage({
       className="bg-red-50 border border-red-200 rounded-lg p-4 flex flex-col items-center text-center"
     >
       <XCircle className="h-12 w-12 text-red-500 mb-3" />
-      <h3 className="text-lg font-semibold text-red-800">{sanitizeText(title)}</h3>
-      <p className="text-red-700 mt-2">{sanitizeText(message)}</p>
-      {details && <p className="text-sm text-red-600 mt-2">{sanitizeText(details)}</p>}
+      <h3 className="text-lg font-semibold text-red-800">{title}</h3>
+      <p className="text-red-700 mt-2">{message}</p>
+      {details && <p className="text-sm text-red-600 mt-2">{details}</p>}
     </motion.div>
   );
 }

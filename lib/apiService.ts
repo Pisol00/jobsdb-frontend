@@ -23,34 +23,18 @@ export class ApiError extends Error {
   }
 }
 
-// Retry configuration
-interface RetryConfig {
-  maxRetries: number;
-  retryDelay: number;
-  retryableStatusCodes: number[];
-}
-
 // Base API service class
 export class ApiService {
   private baseUrl: string;
-  private retryConfig: RetryConfig;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || process.env.NEXT_PUBLIC_API_URL || '';
-    
-    // ค่าเริ่มต้นสำหรับการทำ retry
-    this.retryConfig = {
-      maxRetries: 2, // จำนวนครั้งที่จะลองใหม่
-      retryDelay: 1000, // ระยะเวลารอก่อนลองใหม่ (ms)
-      retryableStatusCodes: [408, 429, 500, 502, 503, 504] // HTTP status ที่สามารถลองใหม่ได้
-    };
   }
 
-  // Helper method for making API requests with retry
+  // Helper method for making API requests
   protected async request<T = any>(
     endpoint: string,
-    options: RequestInit = {},
-    retryCount = 0
+    options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
@@ -68,18 +52,10 @@ export class ApiService {
 
     // Make the request
     try {
-      // Set timeout for the request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
-      
       const response = await fetch(url, {
         ...options,
         headers,
-        signal: controller.signal
       });
-      
-      // Clear timeout
-      clearTimeout(timeoutId);
 
       // Parse the JSON response
       let data: any;
@@ -92,16 +68,6 @@ export class ApiService {
 
       // Check if the request was successful
       if (!response.ok) {
-        // Check if we should retry
-        if (
-          retryCount < this.retryConfig.maxRetries &&
-          this.retryConfig.retryableStatusCodes.includes(response.status)
-        ) {
-          console.log(`Retrying request to ${endpoint} (attempt ${retryCount + 1})...`);
-          await new Promise(resolve => setTimeout(resolve, this.retryConfig.retryDelay));
-          return this.request<T>(endpoint, options, retryCount + 1);
-        }
-        
         throw new ApiError(
           data.message || 'Something went wrong',
           response.status,
@@ -115,28 +81,11 @@ export class ApiService {
       if (error instanceof ApiError) {
         throw error;
       }
-      
-      // Check if request was aborted (timeout)
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new ApiError(
-          'Request timeout. Please check your internet connection.',
-          408, // Request Timeout
-          'REQUEST_TIMEOUT',
-          error
-        );
-      }
 
       // Handle network errors
       if (error instanceof Error) {
-        // Check if we should retry for network errors
-        if (retryCount < this.retryConfig.maxRetries) {
-          console.log(`Retrying network error to ${endpoint} (attempt ${retryCount + 1})...`);
-          await new Promise(resolve => setTimeout(resolve, this.retryConfig.retryDelay));
-          return this.request<T>(endpoint, options, retryCount + 1);
-        }
-        
         throw new ApiError(
-          'Network error. Please check your connection.',
+          'เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาตรวจสอบการเชื่อมต่อของคุณ',
           0,
           'NETWORK_ERROR',
           error
@@ -145,7 +94,7 @@ export class ApiService {
 
       // Handle other errors
       throw new ApiError(
-        'An unknown error occurred',
+        'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ',
         0,
         'UNKNOWN_ERROR',
         error

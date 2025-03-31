@@ -52,7 +52,6 @@ export interface LoginResponse {
   expiresAt?: number;
   message?: string;
   user?: UserData;
-  rememberMe?: boolean;
 }
 
 export interface RegisterResponse {
@@ -86,13 +85,9 @@ export interface UserResponse {
 
 class AuthService extends ApiService {
   private static instance: AuthService;
-  private csrfToken: string | null = null;
 
   private constructor() {
     super();
-    
-    // ตั้งค่า CSRF token ถ้ามี
-    this.fetchCsrfToken();
   }
 
   public static getInstance(): AuthService {
@@ -100,49 +95,6 @@ class AuthService extends ApiService {
       AuthService.instance = new AuthService();
     }
     return AuthService.instance;
-  }
-  
-  // สร้างหรือดึง CSRF token จาก localStorage หรือร้องขอจาก API
-  private async fetchCsrfToken(): Promise<string | null> {
-    try {
-      // ดึง token จาก localStorage ถ้ามี
-      const storedToken = localStorage.getItem('csrfToken');
-      if (storedToken) {
-        this.csrfToken = storedToken;
-        return storedToken;
-      }
-      
-      // ถ้าไม่มี token ให้ร้องขอจาก API (ในสภาพแวดล้อมจริง)
-      // const response = await this.get<{ token: string }>('/auth/csrf-token');
-      // if (response.token) {
-      //   localStorage.setItem('csrfToken', response.token);
-      //   this.csrfToken = response.token;
-      //   return response.token;
-      // }
-      
-      // สร้าง token จำลองขึ้นมาเอง (เพื่อการทดสอบ)
-      const mockToken = `csrf-${Math.random().toString(36).substring(2, 15)}`;
-      localStorage.setItem('csrfToken', mockToken);
-      this.csrfToken = mockToken;
-      return mockToken;
-    } catch (error) {
-      console.error('Failed to fetch CSRF token:', error);
-      return null;
-    }
-  }
-  
-  // เพิ่ม CSRF token ในทุก request
-  private async getRequestOptions(): Promise<RequestInit> {
-    // ให้แน่ใจว่ามี CSRF token
-    if (!this.csrfToken) {
-      await this.fetchCsrfToken();
-    }
-    
-    return {
-      headers: {
-        'X-CSRF-Token': this.csrfToken || '',
-      }
-    };
   }
 
   // Login user
@@ -152,10 +104,10 @@ class AuthService extends ApiService {
       const deviceId = data.deviceId || getOrCreateDeviceId();
       
       // Add user agent information for better tracking and security
-      const options = await this.getRequestOptions();
-      options.headers = {
-        ...options.headers,
-        'User-Agent': navigator.userAgent || 'Unknown Browser'
+      const options: RequestInit = {
+        headers: {
+          'User-Agent': navigator.userAgent || 'Unknown Browser'
+        }
       };
       
       // Make the login request to the API
@@ -163,6 +115,11 @@ class AuthService extends ApiService {
         ...data,
         deviceId
       }, options);
+      
+      // Handle possible response types:
+      // 1. Success with token - standard login
+      // 2. Success with requireTwoFactor - needs 2FA verification
+      // 3. Success with requireEmailVerification - needs email verification
       
       return response;
     } catch (error) {
@@ -173,8 +130,7 @@ class AuthService extends ApiService {
 
   // Register user
   public async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<RegisterResponse>('/auth/register', data, options);
+    return this.post<RegisterResponse>('/auth/register', data);
   }
 
   // Verify OTP for 2FA
@@ -182,65 +138,55 @@ class AuthService extends ApiService {
     // Ensure deviceId is included
     const deviceId = data.deviceId || getOrCreateDeviceId();
     
-    const options = await this.getRequestOptions();
     return this.post<VerifyOTPResponse>('/auth/verify-otp', {
       ...data,
       deviceId
-    }, options);
+    });
   }
 
   // Verify email
   public async verifyEmail(data: VerifyEmailRequest): Promise<VerifyEmailResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<VerifyEmailResponse>('/auth/verify-email', data, options);
+    return this.post<VerifyEmailResponse>('/auth/verify-email', data);
   }
   
   // Verify email token
   public async verifyEmailToken(token: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/verify-email-token', { token }, options);
+    return this.post<ApiResponse>('/auth/verify-email-token', { token });
   }
   
   // Resend email verification
   public async resendEmailVerification(email: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/resend-email-verification', { email }, options);
+    return this.post<ApiResponse>('/auth/resend-email-verification', { email });
   }
 
   // Verify temp token
   public async verifyTempToken(token: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/verify-temp-token', { token }, options);
+    return this.post<ApiResponse>('/auth/verify-temp-token', { token });
   }
 
   // Get current user
   public async getCurrentUser(): Promise<UserResponse> {
-    const options = await this.getRequestOptions();
-    return this.get<UserResponse>('/auth/me', options);
+    return this.get<UserResponse>('/auth/me');
   }
 
   // Forgot password request
   public async forgotPassword(email: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/forgot-password', { email }, options);
+    return this.post<ApiResponse>('/auth/forgot-password', { email });
   }
 
   // Verify reset token
   public async verifyResetToken(token: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/verify-reset-token', { token }, options);
+    return this.post<ApiResponse>('/auth/verify-reset-token', { token });
   }
 
   // Reset password
   public async resetPassword(token: string, password: string): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/reset-password', { token, password }, options);
+    return this.post<ApiResponse>('/auth/reset-password', { token, password });
   }
 
   // Toggle 2FA
   public async toggleTwoFactor(enable: boolean): Promise<ApiResponse> {
-    const options = await this.getRequestOptions();
-    return this.post<ApiResponse>('/auth/toggle-two-factor', { enable }, options);
+    return this.post<ApiResponse>('/auth/toggle-two-factor', { enable });
   }
 
   // Logout (client-side only)
@@ -248,10 +194,6 @@ class AuthService extends ApiService {
     localStorage.removeItem('token');
     sessionStorage.removeItem('tempToken');
     sessionStorage.removeItem('expiresAt');
-    sessionStorage.removeItem('rememberMe');
-    
-    // ไม่ควรลบ CSRF token เมื่อออกจากระบบ เพื่อป้องกันการโจมตีแบบ CSRF
-    // localStorage.removeItem('csrfToken');
   }
 }
 

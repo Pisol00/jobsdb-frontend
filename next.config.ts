@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       
-      // Email verification redirect
+      // Email verification redirect - แก้ไขให้ตรงกับ path ที่ใช้จริง
       {
         source: '/auth/verify-email',
         has: [
@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       
-      // OTP verification redirect
+      // OTP verification redirect - แก้ไขให้รองรับการส่ง expiresAt เป็น query parameter
       {
         source: '/auth/verify-otp/:token',
         has: [
@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
             value: '(?<expiresAt>.*)',
           },
         ],
-        destination: '/auth/verify-otp/:token/:expiresAt',
+        destination: '/auth/verify-otp/:token?expiresAt=:expiresAt',
         permanent: false,
       },
       

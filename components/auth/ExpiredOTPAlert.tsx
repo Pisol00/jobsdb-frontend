@@ -1,5 +1,5 @@
 // components/auth/ExpiredOTPAlert.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,26 @@ export default function ExpiredOTPAlert({
 }: ExpiredOTPAlertProps) {
   const router = useRouter();
   const [countdown, setCountdown] = useState(Math.floor(autoRedirectDelay / 1000));
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  
+  // แยก handleGoToLogin ออกมาเพื่อใช้ซ้ำและป้องกันการ redirect หลายครั้ง
+  const handleGoToLogin = useCallback(() => {
+    if (isRedirecting) return; // ป้องกันการเรียกหลายครั้ง
+    
+    setIsRedirecting(true);
+    
+    // ล้าง session storage
+    sessionStorage.removeItem('tempToken');
+    sessionStorage.removeItem('expiresAt');
+    sessionStorage.removeItem('rememberMe');
+    
+    if (onClose) onClose();
+    
+    // ใช้ setTimeout เพื่อให้การ animation การปิด alert ทำงานเสร็จก่อน
+    setTimeout(() => {
+      router.push('/auth/login');
+    }, 100);
+  }, [router, onClose, isRedirecting]);
   
   useEffect(() => {
     // ตั้งเวลานับถอยหลังเพื่อไปหน้า login อัตโนมัติ
@@ -25,7 +45,13 @@ export default function ExpiredOTPAlert({
     
     // นับถอยหลังวินาที
     const countdownInterval = setInterval(() => {
-      setCountdown(prev => Math.max(0, prev - 1));
+      setCountdown(prev => {
+        const newCount = Math.max(0, prev - 1);
+        if (newCount === 0) {
+          clearInterval(countdownInterval); // หยุดการนับถอยหลังเมื่อเป็น 0
+        }
+        return newCount;
+      });
     }, 1000);
     
     // Clear timeouts/intervals เมื่อ component unmount
@@ -33,14 +59,7 @@ export default function ExpiredOTPAlert({
       clearTimeout(redirectTimeout);
       clearInterval(countdownInterval);
     };
-  }, [autoRedirectDelay]);
-  
-  const handleGoToLogin = () => {
-    sessionStorage.removeItem('tempToken');
-    sessionStorage.removeItem('expiresAt');
-    if (onClose) onClose();
-    router.push('/auth/login');
-  };
+  }, [autoRedirectDelay, handleGoToLogin]);
   
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
@@ -58,6 +77,7 @@ export default function ExpiredOTPAlert({
           <button 
             onClick={handleGoToLogin}
             className="text-gray-500 hover:text-gray-700"
+            disabled={isRedirecting}
           >
             <X className="h-5 w-5" />
           </button>
@@ -76,8 +96,9 @@ export default function ExpiredOTPAlert({
             <Button 
               onClick={handleGoToLogin} 
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              disabled={isRedirecting}
             >
-              ไปที่หน้าเข้าสู่ระบบ
+              {isRedirecting ? "กำลังนำไปยังหน้าเข้าสู่ระบบ..." : "ไปที่หน้าเข้าสู่ระบบ"}
             </Button>
           </div>
         </div>
